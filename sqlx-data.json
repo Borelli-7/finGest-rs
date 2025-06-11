@@ -1,0 +1,38 @@
+{
+  "db": "PostgreSQL",
+  "174a8d0066feebeda01c21284a381db455b981bf5b664ec6216304775de5a007": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO account_wallet (account_login, wallet_id)\n            VALUES ($1, $2)\n            "
+  },
+  "5a80aaa44f93567ab319a6fabf1ed474dcad4841d3435db3260460efe7d0c7c6": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Numeric",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO wallet (name, amount_amount, amount_currency)\n            VALUES ($1, $2, $3)\n            RETURNING id\n            "
+  }
+}

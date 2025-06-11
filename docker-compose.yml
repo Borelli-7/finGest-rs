@@ -1,0 +1,41 @@
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: money-manager-api-rs
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - DATABASE_URL=postgres://postgres:password@db:5432/moneymanager
+      - DB_MAX_CONNECTIONS=10
+      - RUST_LOG=info
+    networks:
+      - money-manager-network
+    
+  db:
+    image: postgres:15-alpine
+    container_name: money-manager-db
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=moneymanager
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - money-manager-network
+
+networks:
+  money-manager-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
