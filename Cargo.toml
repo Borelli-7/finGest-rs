@@ -1,0 +1,44 @@
+[package]
+name = "money-manager-api"
+version = "0.1.0"
+edition = "2021"
+authors = ["Money Manager Team"]
+description = "A RESTful API for money management"
+
+[dependencies]
+# Core dependencies
+actix-web = "4.3.1"
+actix-cors = "0.6.4"
+tokio = { version = "1.29.1", features = ["full"] }
+sqlx = { version = "0.7.1", features = ["runtime-tokio-rustls", "postgres", "time", "uuid", "bigdecimal", "macros", "json", "migrate"] }
+serde = { version = "1.0.171", features = ["derive"] }
+serde_json = "1.0.103"
+dotenv = "0.15.0"
+env_logger = "0.10.0"
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+
+# Utility crates
+uuid = { version = "1.4.1", features = ["v4", "serde"] }
+chrono = { version = "0.4.26", features = ["serde"] }
+thiserror = "1.0.43"
+async-trait = "0.1.72"
+validator = { version = "0.16.1", features = ["derive"] }
+bigdecimal = { version = "0.3.1", features = ["serde"] }
+log = "0.4.19"
+futures = "0.3.28"
+mockall = "0.11.4"
+
+[dev-dependencies]
+tokio-test = "0.4.2"
+actix-rt = "2.8.0"
+mockall = "0.11.4"
+fake = { version = "2.6.1", features = ["derive", "uuid", "chrono"] }
+
+[lib]
+name = "money_manager_api"
+path = "src/lib.rs"
+
+[[bin]]
+name = "money-manager-api"
+path = "src/main.rs"
