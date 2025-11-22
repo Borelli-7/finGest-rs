@@ -3,11 +3,13 @@ use bigdecimal::BigDecimal;
 use sqlx::{PgPool, Row};
 use async_trait::async_trait;
 
+use crate::models::{Category, Money};
+
 use crate::{
     errors::AppError,
     models::{
         Budget, BudgetOutputDto, DateRange, Expense, ExpenseInputDto,
-        Money, Summary, User, UserDto, Wallet, WalletDto,
+        Summary, User, UserDto, Wallet, WalletDto,
     },
 };
 
@@ -220,19 +222,208 @@ impl UserServiceTrait for UserService {
 
     // Additional methods would be implemented similarly
     
-    async fn get_expenses(&self, _login: &str, _wallet_id: i32, _date_range: DateRange) -> Result<Vec<Expense>, AppError> {
-        // Implementation placeholder
-        Ok(Vec::new())
+    async fn get_expenses(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Vec<Expense>, AppError> {
+        // First check if the wallet belongs to the user
+        let belongs_to_user = sqlx::query(
+            "SELECT 1 FROM account_wallet 
+            WHERE account_login = $1 AND wallet_id = $2"
+        )
+        .bind(login)
+        .bind(wallet_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        .is_some();
+
+        if !belongs_to_user {
+            return Err(AppError::NotFoundError(format!("Wallet with id {} not found for user {}", wallet_id, login)));
+        }
+
+        // Fetch expenses for the wallet within the date range
+        let expenses = sqlx::query(
+            "SELECT 
+                id, 
+                amount_amount, 
+                amount_currency, 
+                date, 
+                description, 
+                category_name, 
+                category_profit 
+            FROM expense 
+            WHERE wallet_id = $1 
+            AND date >= TO_DATE($2, 'YYYY-MM-DD') 
+            AND date <= TO_DATE($3, 'YYYY-MM-DD')"
+        )
+        .bind(wallet_id)
+        .bind(date_range.start.to_string())
+        .bind(date_range.end.to_string())
+        .map(|row: sqlx::postgres::PgRow| {
+            Expense {
+                id: row.get("id"),
+                amount: Money {
+                    amount: row.get("amount_amount"),
+                    currency: row.get("amount_currency"),
+                },
+                date: row.get("date"),
+                description: row.get("description"),
+                category: Category {
+                    name: row.get("category_name"),
+                    profit: row.get("category_profit"),
+                },
+            }
+        })
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(expenses)
     }
 
-    async fn get_highest_expense(&self, _login: &str, _wallet_id: i32, _date_range: DateRange) -> Result<Option<Expense>, AppError> {
-        // Implementation placeholder
-        Ok(None)
+    async fn get_highest_expense(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Option<Expense>, AppError> {
+        // First check if the wallet belongs to the user
+        let belongs_to_user = sqlx::query(
+            "SELECT 1 FROM account_wallet 
+            WHERE account_login = $1 AND wallet_id = $2"
+        )
+        .bind(login)
+        .bind(wallet_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        .is_some();
+
+        if !belongs_to_user {
+            return Err(AppError::NotFoundError(format!("Wallet with id {} not found for user {}", wallet_id, login)));
+        }
+
+        // Fetch the expense with the highest amount for the wallet within the date range
+        // Note: This assumes non-profit expenses (i.e., actual expenses not income)
+        let highest_expense_row = sqlx::query(
+            "SELECT 
+                id, 
+                amount_amount, 
+                amount_currency, 
+                date, 
+                description, 
+                category_name, 
+                category_profit 
+            FROM expense 
+            WHERE wallet_id = $1 
+            AND date >= TO_DATE($2, 'YYYY-MM-DD') 
+            AND date <= TO_DATE($3, 'YYYY-MM-DD') 
+            AND category_profit = false 
+            ORDER BY amount_amount DESC 
+            LIMIT 1"
+        )
+        .bind(wallet_id)
+        .bind(date_range.start.to_string())
+        .bind(date_range.end.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        
+        let highest_expense = highest_expense_row.map(|row| {
+            Expense {
+                id: row.get("id"),
+                amount: Money {
+                    amount: row.get("amount_amount"),
+                    currency: row.get("amount_currency"),
+                },
+                date: row.get("date"),
+                description: row.get("description"),
+                category: Category {
+                    name: row.get("category_name"),
+                    profit: row.get("category_profit"),
+                },
+            }
+        });
+
+        Ok(highest_expense)
     }
 
-    async fn add_expense(&self, _login: &str, _wallet_id: i32, _expense: ExpenseInputDto) -> Result<i32, AppError> {
-        // Implementation placeholder
-        Ok(1)
+    async fn add_expense(&self, login: &str, wallet_id: i32, expense: ExpenseInputDto) -> Result<i32, AppError> {
+        // First check if the wallet belongs to the user
+        let belongs_to_user = sqlx::query(
+            "SELECT 1 FROM account_wallet 
+            WHERE account_login = $1 AND wallet_id = $2"
+        )
+        .bind(login)
+        .bind(wallet_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        .is_some();
+
+        if !belongs_to_user {
+            return Err(AppError::NotFoundError(format!("Wallet with id {} not found for user {}", wallet_id, login)));
+        }
+
+        // Validate that the category exists
+        let category_exists = sqlx::query(
+            "SELECT 1 FROM category 
+            WHERE name = $1 AND profit = $2"
+        )
+        .bind(&expense.category.name)
+        .bind(expense.category.profit)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        .is_some();
+
+        if !category_exists {
+            return Err(AppError::BadRequestError(format!("Category {} with profit={} does not exist", expense.category.name, expense.category.profit)));
+        }
+
+        // Insert the expense
+        let expense_id = sqlx::query(
+            "INSERT INTO expense 
+            (wallet_id, amount_amount, amount_currency, date, description, category_name, category_profit) 
+            VALUES ($1, $2, $3, TO_DATE($4, 'YYYY-MM-DD'), $5, $6, $7) 
+            RETURNING id"
+        )
+        .bind(wallet_id)
+        .bind(&expense.amount.amount)
+        .bind(&expense.amount.currency)
+        .bind(expense.date.to_string())
+        .bind(&expense.description)
+        .bind(&expense.category.name)
+        .bind(expense.category.profit)
+        .map(|row: sqlx::postgres::PgRow| row.get::<i32, _>("id"))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // Update the wallet amount if needed
+        // Note: This is a simplification. In a real app, you might want to update the wallet amount based on the expense type (profit or not)
+        if !expense.category.profit {
+            // Expense reduces the wallet amount
+            sqlx::query(
+                "UPDATE wallet 
+                SET amount_amount = amount_amount - $1 
+                WHERE id = $2 AND amount_currency = $3"
+            )
+            .bind(&expense.amount.amount)
+            .bind(wallet_id)
+            .bind(&expense.amount.currency)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        } else {
+            // Income increases the wallet amount
+            sqlx::query(
+                "UPDATE wallet 
+                SET amount_amount = amount_amount + $1 
+                WHERE id = $2 AND amount_currency = $3"
+            )
+            .bind(&expense.amount.amount)
+            .bind(wallet_id)
+            .bind(&expense.amount.currency)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        }
+
+        Ok(expense_id)
     }
 
     async fn delete_expense(&self, _login: &str, _wallet_id: i32, _expense_id: i32) -> Result<(), AppError> {

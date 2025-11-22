@@ -63,7 +63,7 @@ curl -X GET "http://localhost:8080/resources/users/user1/wallets/4/expenses"
 ### Add expense
 
 ```bash
-curl -X POST http://localhost:8080/resources/users/user1/wallets/4/expenses \
+curl -X POST http://localhost:8080/resources/users/user1/wallets/3/expenses \
   -H "Content-Type: application/json" \
   -d '{
     "amount": {
