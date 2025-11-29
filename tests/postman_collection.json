@@ -1,0 +1,1470 @@
+{
+  "info": {
+    "name": "FinGest Money Manager API",
+    "description": "Complete API collection for testing the FinGest Money Manager application. Includes authentication, user management, wallet operations, expense tracking, budget management, and category endpoints with comprehensive test scripts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "fingest-api-collection-v1",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "{{base_url}}",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "Authentication endpoints for user registration, login, and token verification",
+      "item": [
+        {
+          "name": "Register User - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('login');",
+                  "    pm.expect(jsonData).to.have.property('firstName');",
+                  "    pm.expect(jsonData).to.have.property('lastName');",
+                  "    pm.expect(jsonData).to.have.property('admin');",
+                  "});",
+                  "",
+                  "pm.test('Password is not returned in response', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('password');",
+                  "});",
+                  "",
+                  "pm.test('User login matches request', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.login).to.eql(pm.environment.get('test_user_login'));",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{test_user_login}}\",\n  \"firstName\": \"{{test_user_firstname}}\",\n  \"lastName\": \"{{test_user_lastname}}\",\n  \"password\": \"{{test_user_password}}\",\n  \"admin\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Register a new user account with valid credentials"
+          },
+          "response": []
+        },
+        {
+          "name": "Register User - Duplicate Login (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{test_user_login}}\",\n  \"firstName\": \"Duplicate\",\n  \"lastName\": \"User\",\n  \"password\": \"password123\",\n  \"admin\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Attempt to register with an existing login - should fail"
+          },
+          "response": []
+        },
+        {
+          "name": "Register User - Invalid Password (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response contains validation error', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"test_short_password\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\",\n  \"password\": \"short\",\n  \"admin\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Register with password less than 8 characters - should fail"
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('token');",
+                  "    pm.expect(jsonData.token).to.be.a('string');",
+                  "    pm.expect(jsonData.token.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Response contains user information', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('user');",
+                  "    pm.expect(jsonData.user).to.have.property('login');",
+                  "    pm.expect(jsonData.user).to.have.property('admin');",
+                  "});",
+                  "",
+                  "pm.test('Save token to environment', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set('auth_token', jsonData.token);",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{test_user_login}}\",\n  \"password\": \"{{test_user_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login with valid credentials and retrieve JWT token"
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Invalid Credentials (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{test_user_login}}\",\n  \"password\": \"wrong_password\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Attempt login with incorrect password - should fail"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Token - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Token is valid', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('valid');",
+                  "    pm.expect(jsonData.valid).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Response contains user claims', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('login');",
+                  "    pm.expect(jsonData).to.have.property('admin');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify"
+              ]
+            },
+            "description": "Verify that the JWT token is valid"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Token - Missing Token (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify"
+              ]
+            },
+            "description": "Verify endpoint without token - should fail"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "User management endpoints",
+      "item": [
+        {
+          "name": "Get All Users - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is an array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Each user has required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(user => {",
+                  "            pm.expect(user).to.have.property('login');",
+                  "            pm.expect(user).to.have.property('admin');",
+                  "            pm.expect(user).to.not.have.property('password');",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(1000);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users"
+              ]
+            },
+            "description": "Retrieve all users in the system"
+          },
+          "response": []
+        },
+        {
+          "name": "Update User - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains updated user', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('login');",
+                  "    pm.expect(jsonData).to.have.property('firstName');",
+                  "});",
+                  "",
+                  "pm.test('First name was updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.firstName).to.eql('UpdatedName');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"UpdatedName\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}?field=firstName",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}"
+              ],
+              "query": [
+                {
+                  "key": "field",
+                  "value": "firstName"
+                }
+              ]
+            },
+            "description": "Update user's first name"
+          },
+          "response": []
+        },
+        {
+          "name": "Update User - Non-existent User (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Test\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/non_existent_user?field=firstName",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "non_existent_user"
+              ],
+              "query": [
+                {
+                  "key": "field",
+                  "value": "firstName"
+                }
+              ]
+            },
+            "description": "Attempt to update non-existent user - should fail"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "description": "Category management endpoints",
+      "item": [
+        {
+          "name": "Get All Categories - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is an array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Each category has required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(category => {",
+                  "            pm.expect(category).to.have.property('name');",
+                  "            pm.expect(category).to.have.property('profit');",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories"
+              ]
+            },
+            "description": "Retrieve all available categories"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Wallets",
+      "description": "Wallet management endpoints",
+      "item": [
+        {
+          "name": "Get User Wallets - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is an array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Each wallet has required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(wallet => {",
+                  "            pm.expect(wallet).to.have.property('id');",
+                  "            pm.expect(wallet).to.have.property('name');",
+                  "            pm.expect(wallet).to.have.property('amount');",
+                  "            pm.expect(wallet.amount).to.have.property('amount');",
+                  "            pm.expect(wallet.amount).to.have.property('currency');",
+                  "        });",
+                  "        // Save first wallet ID for other tests",
+                  "        pm.environment.set('test_wallet_id', jsonData[0].id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets"
+              ]
+            },
+            "description": "Get all wallets for a specific user"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Wallet - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains wallet data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "    pm.expect(jsonData).to.have.property('amount');",
+                  "});",
+                  "",
+                  "pm.test('Wallet name matches request', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.name).to.eql('Test Wallet');",
+                  "});",
+                  "",
+                  "pm.test('Save wallet ID for future tests', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.id) {",
+                  "        pm.environment.set('created_wallet_id', jsonData.id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Wallet\",\n  \"amount\": {\n    \"amount\": \"1000.00\",\n    \"currency\": \"PLN\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets"
+              ]
+            },
+            "description": "Create a new wallet for the user"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Wallet - Invalid Amount (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Invalid Wallet\",\n  \"amount\": {\n    \"amount\": \"invalid\",\n    \"currency\": \"PLN\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets"
+              ]
+            },
+            "description": "Attempt to create wallet with invalid amount - should fail"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Wallet Summary - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains summary data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('totalExpenses');",
+                  "    pm.expect(jsonData).to.have.property('totalIncome');",
+                  "    pm.expect(jsonData).to.have.property('balance');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "summary"
+              ]
+            },
+            "description": "Get summary statistics for a wallet"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Expenses",
+      "description": "Expense management endpoints",
+      "item": [
+        {
+          "name": "Get Wallet Expenses - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is an array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Each expense has required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(expense => {",
+                  "            pm.expect(expense).to.have.property('id');",
+                  "            pm.expect(expense).to.have.property('amount');",
+                  "            pm.expect(expense).to.have.property('date');",
+                  "            pm.expect(expense).to.have.property('description');",
+                  "            pm.expect(expense).to.have.property('category');",
+                  "        });",
+                  "        // Save first expense ID for deletion test",
+                  "        pm.environment.set('test_expense_id', jsonData[0].id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/expenses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "expenses"
+              ]
+            },
+            "description": "Get all expenses for a specific wallet"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Expense - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains expense data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('amount');",
+                  "    pm.expect(jsonData).to.have.property('description');",
+                  "    pm.expect(jsonData).to.have.property('category');",
+                  "});",
+                  "",
+                  "pm.test('Expense description matches request', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.description).to.eql('Test Grocery Shopping');",
+                  "});",
+                  "",
+                  "pm.test('Save expense ID for future tests', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.id) {",
+                  "        pm.environment.set('created_expense_id', jsonData.id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": {\n    \"amount\": \"50.00\",\n    \"currency\": \"PLN\"\n  },\n  \"date\": \"2023-12-01\",\n  \"description\": \"Test Grocery Shopping\",\n  \"category\": {\n    \"name\": \"Food\",\n    \"profit\": false\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/expenses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "expenses"
+              ]
+            },
+            "description": "Create a new expense in the wallet"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Expense - Invalid Date (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": {\n    \"amount\": \"50.00\",\n    \"currency\": \"PLN\"\n  },\n  \"date\": \"invalid-date\",\n  \"description\": \"Invalid Expense\",\n  \"category\": {\n    \"name\": \"Food\",\n    \"profit\": false\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/expenses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "expenses"
+              ]
+            },
+            "description": "Attempt to create expense with invalid date format - should fail"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Expense - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 204', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/expenses/{{created_expense_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "expenses",
+                "{{created_expense_id}}"
+              ]
+            },
+            "description": "Delete an expense from the wallet"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Expense - Non-existent (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/expenses/999999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "expenses",
+                "999999"
+              ]
+            },
+            "description": "Attempt to delete non-existent expense - should fail"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Highest Expense - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains expense data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('amount');",
+                  "    pm.expect(jsonData).to.have.property('description');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/highest_expense",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "highest_expense"
+              ]
+            },
+            "description": "Get the highest expense in the wallet"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Counted Categories - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is an object or array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.satisfy(function(data) {",
+                  "        return typeof data === 'object';",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/counted_categories?start=2023-01-01&end=2025-12-31",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "counted_categories"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "end",
+                  "value": "2025-12-31"
+                }
+              ]
+            },
+            "description": "Get expense count by category within date range"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Counted Categories - Invalid Date Range (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/counted_categories?start=invalid&end=invalid",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "counted_categories"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "invalid"
+                },
+                {
+                  "key": "end",
+                  "value": "invalid"
+                }
+              ]
+            },
+            "description": "Request with invalid date parameters - should fail"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Budgets",
+      "description": "Budget management endpoints",
+      "item": [
+        {
+          "name": "Get User Budgets - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is an array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Each budget has required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(budget => {",
+                  "            pm.expect(budget).to.have.property('id');",
+                  "            pm.expect(budget).to.have.property('category');",
+                  "            pm.expect(budget).to.have.property('total');",
+                  "            pm.expect(budget).to.have.property('date_range');",
+                  "        });",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets?start_min=2023-01-01&start_max=2025-12-31&end_min=2023-01-01&end_max=2025-12-31",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets"
+              ],
+              "query": [
+                {
+                  "key": "start_min",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "start_max",
+                  "value": "2025-12-31"
+                },
+                {
+                  "key": "end_min",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "end_max",
+                  "value": "2025-12-31"
+                }
+              ]
+            },
+            "description": "Get all budgets for a user within date range"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Budget - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains budget data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('category');",
+                  "    pm.expect(jsonData).to.have.property('total');",
+                  "});",
+                  "",
+                  "pm.test('Budget category matches request', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.category.name).to.eql('Food');",
+                  "});",
+                  "",
+                  "pm.test('Save budget ID for future tests', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.id) {",
+                  "        pm.environment.set('created_budget_id', jsonData.id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": {\n    \"name\": \"Food\",\n    \"profit\": false\n  },\n  \"total\": {\n    \"amount\": \"500.00\",\n    \"currency\": \"PLN\"\n  },\n  \"dateRange\": {\n    \"start\": \"2023-12-01\",\n    \"end\": \"2023-12-31\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets"
+              ]
+            },
+            "description": "Create a new budget for the user"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Budget - Invalid Date Range (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": {\n    \"name\": \"Food\",\n    \"profit\": false\n  },\n  \"total\": {\n    \"amount\": \"500.00\",\n    \"currency\": \"PLN\"\n  },\n  \"dateRange\": {\n    \"start\": \"2023-12-31\",\n    \"end\": \"2023-12-01\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets"
+              ]
+            },
+            "description": "Attempt to create budget with end date before start date - should fail"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Budget - Missing Fields (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": {\n    \"name\": \"Food\",\n    \"profit\": false\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets"
+              ]
+            },
+            "description": "Attempt to create budget with missing required fields - should fail"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
