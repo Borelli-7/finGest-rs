@@ -15,6 +15,7 @@ pub async fn run(pool: &PgPool) -> Result<(), AppError> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn create_database_if_not_exists(url: &str) -> Result<(), AppError> {
     let database_url_parts: Vec<&str> = url.split('/').collect();
     

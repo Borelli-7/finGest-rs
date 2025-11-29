@@ -33,7 +33,7 @@ pub struct UserDto {
 }
 
 // For user creation
-#[derive(Debug, Clone, Deserialize, Validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CreateUserDto {
     #[validate(length(min = 1, message = "Login cannot be empty"))]
     pub login: String,
@@ -73,4 +73,86 @@ pub struct UserWithRelations {
     pub wallets: Vec<Wallet>,
     pub budgets: Vec<Budget>,
     pub savings: Vec<Saving>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use validator::Validate;
+    
+    #[test]
+    fn test_user_validation_success() {
+        let user = User {
+            login: "testuser".to_string(),
+            first_name: Some("Test".to_string()),
+            last_name: Some("User".to_string()),
+            password: Some("password123".to_string()),
+            admin: false,
+        };
+        assert!(user.validate().is_ok());
+    }
+    
+    #[test]
+    fn test_user_validation_empty_login() {
+        let user = User {
+            login: "".to_string(),
+            first_name: None,
+            last_name: None,
+            password: None,
+            admin: false,
+        };
+        assert!(user.validate().is_err());
+    }
+    
+    #[test]
+    fn test_user_to_dto_conversion() {
+        let user = User {
+            login: "testuser".to_string(),
+            first_name: Some("Test".to_string()),
+            last_name: Some("User".to_string()),
+            password: Some("password123".to_string()),
+            admin: true,
+        };
+        let dto: UserDto = user.into();
+        assert_eq!(dto.login, "testuser");
+        assert_eq!(dto.first_name, Some("Test".to_string()));
+        assert_eq!(dto.last_name, Some("User".to_string()));
+        assert_eq!(dto.admin, true);
+    }
+    
+    #[test]
+    fn test_create_user_dto_validation_success() {
+        let dto = CreateUserDto {
+            login: "newuser".to_string(),
+            first_name: Some("New".to_string()),
+            last_name: Some("User".to_string()),
+            password: "securepassword123".to_string(),
+            admin: Some(false),
+        };
+        assert!(dto.validate().is_ok());
+    }
+    
+    #[test]
+    fn test_create_user_dto_validation_short_password() {
+        let dto = CreateUserDto {
+            login: "newuser".to_string(),
+            first_name: None,
+            last_name: None,
+            password: "short".to_string(),
+            admin: None,
+        };
+        assert!(dto.validate().is_err());
+    }
+    
+    #[test]
+    fn test_create_user_dto_validation_empty_login() {
+        let dto = CreateUserDto {
+            login: "".to_string(),
+            first_name: None,
+            last_name: None,
+            password: "password123".to_string(),
+            admin: None,
+        };
+        assert!(dto.validate().is_err());
+    }
 }

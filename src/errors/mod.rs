@@ -80,3 +80,64 @@ impl ResponseError for AppError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::http::StatusCode;
+    
+    #[test]
+    fn test_authentication_error_response() {
+        let error = AppError::AuthenticationError("Invalid credentials".to_string());
+        let response = error.error_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+    
+    #[test]
+    fn test_authorization_error_response() {
+        let error = AppError::AuthorizationError("Forbidden".to_string());
+        let response = error.error_response();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+    
+    #[test]
+    fn test_not_found_error_response() {
+        let error = AppError::NotFoundError("Resource not found".to_string());
+        let response = error.error_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+    
+    #[test]
+    fn test_validation_error_response() {
+        let error = AppError::ValidationError("Invalid input".to_string());
+        let response = error.error_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+    
+    #[test]
+    fn test_bad_request_error_response() {
+        let error = AppError::BadRequestError("Bad request".to_string());
+        let response = error.error_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+    
+    #[test]
+    fn test_database_error_response() {
+        let error = AppError::DatabaseError("Database connection failed".to_string());
+        let response = error.error_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+    
+    #[test]
+    fn test_internal_server_error_response() {
+        let error = AppError::InternalServerError("Something went wrong".to_string());
+        let response = error.error_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+    
+    #[test]
+    fn test_error_display() {
+        let error = AppError::AuthenticationError("Test message".to_string());
+        assert_eq!(error.to_string(), "Authentication error: Test message");
+    }
+}

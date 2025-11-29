@@ -11,7 +11,7 @@ pub struct Wallet {
     #[validate(length(min = 1, message = "Wallet name cannot be empty"))]
     pub name: String,
     
-    #[validate]
+    #[validate(nested)]
     pub amount: Money,
 }
 
@@ -32,7 +32,7 @@ pub struct WalletDto {
     #[validate(length(min = 1, message = "Wallet name cannot be empty"))]
     pub name: String,
     
-    #[validate]
+    #[validate(nested)]
     pub amount: Money,
 }
 
@@ -53,5 +53,58 @@ impl From<WalletDto> for Wallet {
             name: dto.name,
             amount: dto.amount,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bigdecimal::BigDecimal;
+    use validator::Validate;
+    
+    #[test]
+    fn test_wallet_validation_success() {
+        let wallet = Wallet {
+            id: Some(1),
+            name: "My Wallet".to_string(),
+            amount: Money::new(BigDecimal::from(100), None),
+        };
+        assert!(wallet.validate().is_ok());
+    }
+    
+    #[test]
+    fn test_wallet_validation_empty_name() {
+        let wallet = Wallet {
+            id: None,
+            name: "".to_string(),
+            amount: Money::zero(),
+        };
+        assert!(wallet.validate().is_err());
+    }
+    
+    #[test]
+    fn test_wallet_dto_to_wallet_conversion() {
+        let dto = WalletDto {
+            id: Some(5),
+            name: "Test Wallet".to_string(),
+            amount: Money::new(BigDecimal::from(250), Some("USD".to_string())),
+        };
+        let wallet: Wallet = dto.into();
+        assert_eq!(wallet.id, Some(5));
+        assert_eq!(wallet.name, "Test Wallet");
+        assert_eq!(wallet.amount.currency, "USD");
+    }
+    
+    #[test]
+    fn test_wallet_to_dto_conversion() {
+        let wallet = Wallet {
+            id: Some(10),
+            name: "Savings".to_string(),
+            amount: Money::new(BigDecimal::from(1000), None),
+        };
+        let dto: WalletDto = wallet.into();
+        assert_eq!(dto.id, Some(10));
+        assert_eq!(dto.name, "Savings");
+        assert_eq!(dto.amount.currency, "PLN");
     }
 }

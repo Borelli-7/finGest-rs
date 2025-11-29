@@ -8,13 +8,13 @@ use crate::models::{Category, DateRange, Money};
 pub struct Budget {
     pub id: Option<i32>,
     
-    #[validate]
+    #[validate(nested)]
     pub category: Category,
     
-    #[validate]
+    #[validate(nested)]
     pub total: Money,
     
-    #[validate]
+    #[validate(nested)]
     pub date_range: DateRange,
 }
 
@@ -32,14 +32,14 @@ pub struct BudgetOutputDto {
 // DTO for budget input
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct BudgetInputDto {
-    #[validate]
+    #[validate(nested)]
     pub category: Category,
     
-    #[validate]
+    #[validate(nested)]
     pub total: Money,
     
     #[serde(rename = "dateRange")]
-    #[validate]
+    #[validate(nested)]
     pub date_range: DateRange,
 }
 
@@ -64,5 +64,59 @@ impl From<BudgetInputDto> for Budget {
             total: dto.total,
             date_range: dto.date_range,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bigdecimal::BigDecimal;
+    use chrono::NaiveDate;
+    use validator::Validate;
+    
+    #[test]
+    fn test_budget_validation_success() {
+        let budget = Budget {
+            id: Some(1),
+            category: Category::new("Food".to_string(), false),
+            total: Money::new(BigDecimal::from(500), None),
+            date_range: DateRange::new(
+                Some(NaiveDate::from_ymd_opt(2023, 1, 1).unwrap()),
+                Some(NaiveDate::from_ymd_opt(2023, 12, 31).unwrap()),
+            ),
+        };
+        assert!(budget.validate().is_ok());
+    }
+    
+    #[test]
+    fn test_budget_to_output_dto_conversion() {
+        let budget = Budget {
+            id: Some(10),
+            category: Category::new("Transport".to_string(), false),
+            total: Money::new(BigDecimal::from(300), Some("USD".to_string())),
+            date_range: DateRange::new(
+                Some(NaiveDate::from_ymd_opt(2023, 6, 1).unwrap()),
+                Some(NaiveDate::from_ymd_opt(2023, 6, 30).unwrap()),
+            ),
+        };
+        let dto: BudgetOutputDto = budget.into();
+        assert_eq!(dto.id, Some(10));
+        assert_eq!(dto.category.name, "Transport");
+        assert_eq!(dto.total.currency, "USD");
+        assert_eq!(dto.spent.amount, BigDecimal::from(0));
+        assert_eq!(dto.left.amount, BigDecimal::from(300));
+    }
+    
+    #[test]
+    fn test_budget_input_dto_to_budget_conversion() {
+        let dto = BudgetInputDto {
+            category: Category::new("Entertainment".to_string(), false),
+            total: Money::new(BigDecimal::from(200), None),
+            date_range: DateRange::default(),
+        };
+        let budget: Budget = dto.into();
+        assert_eq!(budget.id, None);
+        assert_eq!(budget.category.name, "Entertainment");
+        assert_eq!(budget.total.amount, BigDecimal::from(200));
     }
 }

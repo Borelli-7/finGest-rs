@@ -4,7 +4,8 @@ use dotenv::dotenv;
 use money_manager_api::{
     config::Config, 
     db::init_db,
-    api::routes::configure_routes
+    api::routes::configure_routes,
+    services::{AuthService, AuthServiceTrait},
 };
 use sqlx::postgres::PgPoolOptions;
 use std::io;
@@ -35,6 +36,13 @@ async fn main() -> io::Result<()> {
     // Apply database migrations
     init_db(&pool).await.expect("Failed to initialize database");
     
+    // Create auth service
+    let auth_service: Box<dyn AuthServiceTrait> = Box::new(
+        AuthService::new(pool.clone(), config.jwt_secret.clone())
+            .with_expiration(config.jwt_expiration_hours)
+    );
+    let auth_service = web::Data::new(auth_service);
+    
     tracing::info!("Starting server at {}:{}", config.host, config.port);
     
     // Start HTTP server
@@ -51,6 +59,7 @@ async fn main() -> io::Result<()> {
             .wrap(Logger::default())
             .wrap(cors)
             .app_data(web::Data::new(pool.clone()))
+            .app_data(auth_service.clone())
             .configure(configure_routes)
     })
     .bind((config.host.as_str(), config.port))?

@@ -9,7 +9,7 @@ use crate::models::{Category, Money};
 pub struct Expense {
     pub id: Option<i32>,
     
-    #[validate]
+    #[validate(nested)]
     pub amount: Money,
     
     pub date: NaiveDate,
@@ -17,14 +17,14 @@ pub struct Expense {
     #[validate(length(min = 1, max = 255, message = "Description must be between 1 and 255 characters"))]
     pub description: String,
     
-    #[validate]
+    #[validate(nested)]
     pub category: Category,
 }
 
 // DTO for expense input
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct ExpenseInputDto {
-    #[validate]
+    #[validate(nested)]
     pub amount: Money,
     
     pub date: NaiveDate,
@@ -32,7 +32,7 @@ pub struct ExpenseInputDto {
     #[validate(length(min = 1, max = 255, message = "Description must be between 1 and 255 characters"))]
     pub description: String,
     
-    #[validate]
+    #[validate(nested)]
     pub category: Category,
 }
 
@@ -45,5 +45,63 @@ impl From<ExpenseInputDto> for Expense {
             description: dto.description,
             category: dto.category,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bigdecimal::BigDecimal;
+    use validator::Validate;
+    
+    #[test]
+    fn test_expense_validation_success() {
+        let expense = Expense {
+            id: Some(1),
+            amount: Money::new(BigDecimal::from(50), None),
+            date: NaiveDate::from_ymd_opt(2023, 6, 15).unwrap(),
+            description: "Grocery shopping".to_string(),
+            category: Category::new("Food".to_string(), false),
+        };
+        assert!(expense.validate().is_ok());
+    }
+    
+    #[test]
+    fn test_expense_validation_empty_description() {
+        let expense = Expense {
+            id: None,
+            amount: Money::zero(),
+            date: NaiveDate::from_ymd_opt(2023, 6, 15).unwrap(),
+            description: "".to_string(),
+            category: Category::new("Food".to_string(), false),
+        };
+        assert!(expense.validate().is_err());
+    }
+    
+    #[test]
+    fn test_expense_validation_description_too_long() {
+        let long_description = "a".repeat(256);
+        let expense = Expense {
+            id: None,
+            amount: Money::zero(),
+            date: NaiveDate::from_ymd_opt(2023, 6, 15).unwrap(),
+            description: long_description,
+            category: Category::new("Food".to_string(), false),
+        };
+        assert!(expense.validate().is_err());
+    }
+    
+    #[test]
+    fn test_expense_input_dto_to_expense_conversion() {
+        let dto = ExpenseInputDto {
+            amount: Money::new(BigDecimal::from(75), Some("EUR".to_string())),
+            date: NaiveDate::from_ymd_opt(2023, 7, 20).unwrap(),
+            description: "Restaurant".to_string(),
+            category: Category::new("Food".to_string(), false),
+        };
+        let expense: Expense = dto.into();
+        assert_eq!(expense.id, None);
+        assert_eq!(expense.amount.currency, "EUR");
+        assert_eq!(expense.description, "Restaurant");
     }
 }
