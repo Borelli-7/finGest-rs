@@ -18,6 +18,7 @@
 **finGest-rs** is a RESTful API for personal money management built with Rust, using the Actix-Web framework and PostgreSQL database. The application follows a layered architecture pattern with clear separation of concerns across API, Service, and Data layers.
 
 ### Key Features
+- **Authentication & Authorization** - JWT-based stateless authentication with bcrypt password hashing
 - User account management
 - Wallet management with multi-currency support
 - Expense tracking with categorization
@@ -44,10 +45,12 @@ package "API Layer" {
     [Actix-Web Server] as server
     [CORS Middleware] as cors
     [Logger Middleware] as logger
+    [JWT Auth Middleware] as jwtAuth
     [Route Handlers] as handlers
 }
 
 package "Service Layer" {
+    [Auth Service] as authSvc
     [User Service] as userSvc
     [Category Service] as catSvc
     [Business Logic] as logic
@@ -74,7 +77,9 @@ package "Infrastructure" {
 client --> server
 server --> cors
 server --> logger
+server --> jwtAuth
 server --> handlers
+handlers --> authSvc
 handlers --> userSvc
 handlers --> catSvc
 userSvc --> logic
@@ -113,18 +118,23 @@ package "config" {
 
 package "api" {
     package "handlers" {
+        component [Auth Handler] as authHandler
         component [User Handler] as userHandler
         component [Category Handler] as catHandler
     }
     
     package "routes" {
+        component [Auth Routes] as authRoutes
         component [User Routes] as userRoutes
         component [Category Routes] as catRoutes
         component [Route Configurator] as routeConfig
     }
+    
+    component [JWT Middleware] as jwtMiddleware
 }
 
 package "services" {
+    component [Auth Service] as authService
     component [User Service] as userService
     component [Category Service] as catService
 }
@@ -161,14 +171,19 @@ main --> configMgr
 main --> dbInit
 main --> routeConfig
 
+routeConfig --> authRoutes
 routeConfig --> userRoutes
 routeConfig --> catRoutes
 
+authRoutes --> authHandler
 userRoutes --> userHandler
 catRoutes --> catHandler
 
+authHandler --> authService
 userHandler --> userService
 catHandler --> catService
+
+jwtMiddleware ..> authService : validates tokens
 
 userService --> repo
 catService --> repo
@@ -224,6 +239,23 @@ class User {
     +last_name: Option<String>
     -password: Option<String>
     +admin: bool
+}
+
+class LoginDto {
+    +login: String
+    +password: String
+}
+
+class LoginResponse {
+    +token: String
+    +user: UserDto
+}
+
+class Claims {
+    +sub: String
+    +admin: bool
+    +exp: i64
+    +iat: i64
 }
 
 class UserDto {
@@ -465,16 +497,18 @@ entity "saving" as saving {
     end_date: DATE
 }
 
-account ||--o{ account_wallet
-wallet ||--o{ account_wallet
-wallet ||--o{ expense
-category ||--o{ expense
-account ||--o{ budget
-category ||--o{ budget
-account ||--o{ saving
+' Relationships
+account ||--o{ account_wallet : "owns"
+wallet ||--o{ account_wallet : "belongs to"
+wallet ||--o{ expense : "contains"
+category ||--o{ expense : "categorizes"
+account ||--o{ budget : "manages"
+category ||--o{ budget : "applies to"
+account ||--o{ saving : "tracks"
 
 note right of account
   User authentication and profile
+  Password stored as bcrypt hash
 end note
 
 note right of wallet
@@ -501,7 +535,173 @@ end note
 
 ## Sequence Diagrams
 
-### 1. User Gets Wallet Summary
+### 1. User Authentication Flow
+
+```plantuml
+@startuml User Authentication Flow
+!theme plain
+actor Client
+participant "Auth Handler" as Handler
+participant "Auth Service" as Service
+participant "Repository" as Repo
+database "PostgreSQL" as DB
+
+Client -> Handler: POST /api/auth/login\n+ LoginDto {login, password}
+activate Handler
+
+Handler -> Handler: Validate JSON payload
+
+Handler -> Service: login(login_dto)
+activate Service
+
+Service -> Service: Validate input
+
+Service -> Repo: Query user by login
+activate Repo
+Repo -> DB: SELECT * FROM account\nWHERE login = $1
+activate DB
+DB --> Repo: User with hashed password
+deactivate DB
+Repo --> Service: User
+deactivate Repo
+
+Service -> Service: verify_password(\nplain_password,\nhashed_password)
+
+alt Password valid
+    Service -> Service: generate_token(user)\n- Create JWT claims\n- Set expiration\n- Sign with secret
+    
+    Service --> Handler: LoginResponse {\ntoken,\nuser_dto\n}
+    deactivate Service
+    
+    Handler --> Client: 200 OK + JSON(LoginResponse)
+else Password invalid
+    Service --> Handler: AuthenticationError
+    Handler --> Client: 401 Unauthorized
+end
+
+deactivate Handler
+
+@enduml
+```
+
+### 2. Protected Endpoint with JWT Middleware
+
+```plantuml
+@startuml Protected Endpoint Flow
+!theme plain
+actor Client
+participant "JWT Middleware" as Middleware
+participant "Handler" as Handler
+participant "Service" as Service
+database "PostgreSQL" as DB
+
+Client -> Middleware: GET /resources/users/{login}/wallets\nAuthorization: Bearer <token>
+activate Middleware
+
+Middleware -> Middleware: Extract token from\nAuthorization header
+
+alt Token present
+    Middleware -> Middleware: verify_jwt_token(token, secret)\n- Decode JWT\n- Validate signature\n- Check expiration
+    
+    alt Token valid
+        Middleware -> Middleware: Extract Claims\n(login, admin, exp, iat)
+        
+        Middleware -> Middleware: Store claims in\nrequest extensions
+        
+        Middleware -> Handler: Forward request\nwith claims
+        activate Handler
+        
+        Handler -> Handler: Extract claims from\nrequest extensions
+        
+        Handler -> Handler: Authorize:\nVerify claims.login\nmatches path param
+        
+        alt Authorized
+            Handler -> Service: get_wallets(login)
+            activate Service
+            Service -> DB: Query wallets
+            activate DB
+            DB --> Service: Vec<Wallet>
+            deactivate DB
+            Service --> Handler: Vec<WalletDto>
+            deactivate Service
+            
+            Handler --> Middleware: 200 OK + JSON
+            Middleware --> Client: Response
+        else Not authorized
+            Handler --> Middleware: 403 Forbidden
+            Middleware --> Client: Error response
+        end
+        
+        deactivate Handler
+    else Token invalid or expired
+        Middleware --> Client: 401 Unauthorized\n"Invalid token"
+    end
+else Token missing
+    Middleware --> Client: 401 Unauthorized\n"Missing Authorization header"
+end
+
+deactivate Middleware
+
+@enduml
+```
+
+### 3. User Registration Flow
+
+```plantuml
+@startuml User Registration Flow
+!theme plain
+actor Client
+participant "Auth Handler" as Handler
+participant "Auth Service" as Service
+participant "Repository" as Repo
+database "PostgreSQL" as DB
+
+Client -> Handler: POST /api/auth/register\n+ CreateUserDto
+activate Handler
+
+Handler -> Handler: Validate JSON payload\n- Check required fields\n- Validate password length
+
+Handler -> Service: register(user_dto)
+activate Service
+
+Service -> Service: Validate business rules
+
+Service -> Repo: Check if user exists
+activate Repo
+Repo -> DB: SELECT * FROM account\nWHERE login = $1
+activate DB
+DB --> Repo: Optional<User>
+deactivate DB
+Repo --> Service: Result
+deactivate Repo
+
+alt User already exists
+    Service --> Handler: BadRequestError:\n"User already exists"
+    Handler --> Client: 400 Bad Request
+else User doesn't exist
+    Service -> Service: hash_password(password)\nusing bcrypt with cost=12
+    
+    Service -> Repo: Insert new user
+    activate Repo
+    Repo -> DB: INSERT INTO account\n(login, password, ...)\nVALUES ($1, $2, ...)
+    activate DB
+    DB --> Repo: Success
+    deactivate DB
+    Repo --> Service: Ok
+    deactivate Repo
+    
+    Service --> Handler: UserDto (without password)
+    deactivate Service
+    
+    Handler --> Client: 201 Created + JSON(UserDto)
+end
+
+deactivate Handler
+
+@enduml
+```
+
+### 4. Get Wallet Summary
 
 ```plantuml
 @startuml Get Wallet Summary Sequence
@@ -551,7 +751,7 @@ deactivate Handler
 @enduml
 ```
 
-### 2. Create Expense Flow
+### 5. Create Expense Flow
 
 ```plantuml
 @startuml Create Expense Sequence
@@ -631,7 +831,173 @@ deactivate Handler
 @enduml
 ```
 
-### 3. Get All Categories
+### 3. User Authentication Flow
+
+```plantuml
+@startuml User Authentication Flow
+!theme plain
+actor Client
+participant "Auth Handler" as Handler
+participant "Auth Service" as Service
+participant "Repository" as Repo
+database "PostgreSQL" as DB
+
+Client -> Handler: POST /api/auth/login\n+ LoginDto {login, password}
+activate Handler
+
+Handler -> Handler: Validate JSON payload
+
+Handler -> Service: login(login_dto)
+activate Service
+
+Service -> Service: Validate input
+
+Service -> Repo: Query user by login
+activate Repo
+Repo -> DB: SELECT * FROM account\nWHERE login = $1
+activate DB
+DB --> Repo: User with hashed password
+deactivate DB
+Repo --> Service: User
+deactivate Repo
+
+Service -> Service: verify_password(\nplain_password,\nhashed_password)
+
+alt Password valid
+    Service -> Service: generate_token(user)\n- Create JWT claims\n- Set expiration\n- Sign with secret
+    
+    Service --> Handler: LoginResponse {\ntoken,\nuser_dto\n}
+    deactivate Service
+    
+    Handler --> Client: 200 OK + JSON(LoginResponse)
+else Password invalid
+    Service --> Handler: AuthenticationError
+    Handler --> Client: 401 Unauthorized
+end
+
+deactivate Handler
+
+@enduml
+```
+
+### 4. Protected Endpoint with JWT Middleware
+
+```plantuml
+@startuml Protected Endpoint Flow
+!theme plain
+actor Client
+participant "JWT Middleware" as Middleware
+participant "Handler" as Handler
+participant "Service" as Service
+database "PostgreSQL" as DB
+
+Client -> Middleware: GET /resources/users/{login}/wallets\nAuthorization: Bearer <token>
+activate Middleware
+
+Middleware -> Middleware: Extract token from\nAuthorization header
+
+alt Token present
+    Middleware -> Middleware: verify_jwt_token(token, secret)\n- Decode JWT\n- Validate signature\n- Check expiration
+    
+    alt Token valid
+        Middleware -> Middleware: Extract Claims\n(login, admin, exp, iat)
+        
+        Middleware -> Middleware: Store claims in\nrequest extensions
+        
+        Middleware -> Handler: Forward request\nwith claims
+        activate Handler
+        
+        Handler -> Handler: Extract claims from\nrequest extensions
+        
+        Handler -> Handler: Authorize:\nVerify claims.login\nmatches path param
+        
+        alt Authorized
+            Handler -> Service: get_wallets(login)
+            activate Service
+            Service -> DB: Query wallets
+            activate DB
+            DB --> Service: Vec<Wallet>
+            deactivate DB
+            Service --> Handler: Vec<WalletDto>
+            deactivate Service
+            
+            Handler --> Middleware: 200 OK + JSON
+            Middleware --> Client: Response
+        else Not authorized
+            Handler --> Middleware: 403 Forbidden
+            Middleware --> Client: Error response
+        end
+        
+        deactivate Handler
+    else Token invalid or expired
+        Middleware --> Client: 401 Unauthorized\n"Invalid token"
+    end
+else Token missing
+    Middleware --> Client: 401 Unauthorized\n"Missing Authorization header"
+end
+
+deactivate Middleware
+
+@enduml
+```
+
+### 5. User Registration Flow
+
+```plantuml
+@startuml User Registration Flow
+!theme plain
+actor Client
+participant "Auth Handler" as Handler
+participant "Auth Service" as Service
+participant "Repository" as Repo
+database "PostgreSQL" as DB
+
+Client -> Handler: POST /api/auth/register\n+ CreateUserDto
+activate Handler
+
+Handler -> Handler: Validate JSON payload\n- Check required fields\n- Validate password length
+
+Handler -> Service: register(user_dto)
+activate Service
+
+Service -> Service: Validate business rules
+
+Service -> Repo: Check if user exists
+activate Repo
+Repo -> DB: SELECT * FROM account\nWHERE login = $1
+activate DB
+DB --> Repo: Optional<User>
+deactivate DB
+Repo --> Service: Result
+deactivate Repo
+
+alt User already exists
+    Service --> Handler: BadRequestError:\n"User already exists"
+    Handler --> Client: 400 Bad Request
+else User doesn't exist
+    Service -> Service: hash_password(password)\nusing bcrypt with cost=12
+    
+    Service -> Repo: Insert new user
+    activate Repo
+    Repo -> DB: INSERT INTO account\n(login, password, ...)\nVALUES ($1, $2, ...)
+    activate DB
+    DB --> Repo: Success
+    deactivate DB
+    Repo --> Service: Ok
+    deactivate Repo
+    
+    Service --> Handler: UserDto (without password)
+    deactivate Service
+    
+    Handler --> Client: 201 Created + JSON(UserDto)
+end
+
+deactivate Handler
+
+@enduml
+```
+
+### 6. Get All Categories
 
 ```plantuml
 @startuml Get Categories Sequence
@@ -666,7 +1032,7 @@ deactivate Handler
 @enduml
 ```
 
-### 4. Application Startup
+### 7. Application Startup
 
 ```plantuml
 @startuml Application Startup Sequence
@@ -688,7 +1054,7 @@ Main -> Main: Initialize tracing\nsubscriber
 
 Main -> Config: from_env()
 activate Config
-Config -> Config: Read environment\nvariables:\n- HOST, PORT\n- DATABASE_URL\n- DB_MAX_CONNECTIONS\n- RUST_LOG
+Config -> Config: Read environment\nvariables:\n- HOST, PORT\n- DATABASE_URL\n- DB_MAX_CONNECTIONS\n- RUST_LOG\n- JWT_SECRET\n- JWT_EXPIRATION_HOURS
 Config --> Main: Config instance
 deactivate Config
 
@@ -710,6 +1076,8 @@ deactivate DB
 Migrator --> Main: Ok
 deactivate Migrator
 
+Main -> Main: Create AuthService\nwith JWT config
+
 Main -> Server: HttpServer::new()
 activate Server
 
@@ -719,11 +1087,11 @@ Server -> Server: Add middlewares:\n- Logger\n- CORS
 
 Server -> Routes: configure_routes()
 activate Routes
-Routes -> Routes: Register:\n- User routes\n- Category routes
+Routes -> Routes: Register:\n- Auth routes\n- User routes\n- Category routes
 Routes --> Server: Routes configured
 deactivate Routes
 
-Server -> Server: Inject PgPool as\napp_data
+Server -> Server: Inject dependencies:\n- PgPool\n- AuthService
 
 Main -> Server: bind(host, port)
 Server -> Server: Listen on address
@@ -744,15 +1112,17 @@ note right: Server running at\nlocalhost:8080
 ### 1. **Layered Architecture Pattern**
 The application follows a strict three-tier architecture:
 
-- **Presentation Layer (API)**: `handlers/` and `routes/`
+- **Presentation Layer (API)**: `handlers/`, `routes/`, and `middleware/`
   - Handles HTTP requests/responses
   - Request validation and parameter extraction
   - Response formatting and status codes
+  - JWT authentication middleware for protected routes
 
 - **Business Logic Layer (Services)**: `services/`
   - Encapsulates business rules
   - Orchestrates data operations
   - Independent of HTTP concerns
+  - Authentication and authorization logic
 
 - **Data Access Layer (Repository)**: `db/`
   - Database interactions via SQLx
@@ -780,9 +1150,10 @@ pub trait Repository<T, ID> {
 
 ### 4. **Service Trait Pattern**
 Business logic defined through traits for testability:
+- `AuthServiceTrait` - Authentication, JWT generation/validation, password hashing
 - `UserServiceTrait` - User and wallet operations
 - `CategoryServiceTrait` - Category management
-- Enables mock implementations for testing
+- Enables mock implementations for testing (MockAuthService, etc.)
 
 ### 5. **Value Object Pattern**
 Immutable, validated domain objects:
@@ -812,7 +1183,16 @@ PgPoolOptions::new()
     .max_connections(config.db_max_connections)
     .connect(&config.db_url)
     .await
+
+AuthService::new(pool, jwt_secret)
+    .with_expiration(24)
 ```
+
+### 9. **Middleware Pattern**
+Actix-Web middleware for cross-cutting concerns:
+- **JwtAuth Middleware**: Intercepts requests, validates JWT tokens, injects claims into request context
+- Implements `Transform` and `Service` traits
+- Enables declarative authentication on routes
 
 ---
 
@@ -833,6 +1213,11 @@ PgPoolOptions::new()
 - **Serde 1.0**: Serialization/deserialization framework
 - **Serde JSON 1.0**: JSON support
 - **Validator 0.16**: Derive-based validation
+
+### Authentication & Security
+- **jsonwebtoken 9.2**: JWT token generation and validation
+- **bcrypt 0.15**: Password hashing with configurable cost
+- **async-trait 0.1**: Async trait support for service abstractions
 
 ### Data Types
 - **BigDecimal 0.3**: Arbitrary precision decimals for money
@@ -888,9 +1273,14 @@ Clear boundaries between:
 - Stateless API design
 
 ### 6. **Security**
+- **JWT-based authentication** with HS256 algorithm
+- **bcrypt password hashing** with cost factor 12
+- **Token expiration** with configurable duration (default: 24 hours)
 - Password fields excluded from serialization
-- CORS configuration for cross-origin requests
+- **Authorization middleware** for protected endpoints
+- CORS configuration for cross-origin requests with credentials support
 - Database transactions for data consistency
+- **Input validation** at API boundary using validator crate
 
 ### 7. **Maintainability**
 - Modular structure with clear module boundaries
@@ -901,17 +1291,29 @@ Clear boundaries between:
 
 ## Data Flow Example
 
-**Creating an expense:**
+**User authentication:**
 
-1. **Client** sends POST request to `/resources/users/{login}/wallets/{id}/expenses`
-2. **Route** matches and calls `create_expense` handler
-3. **Handler** extracts path params, validates JSON body
-4. **Service** receives `ExpenseInputDto`, validates business rules
-5. **Repository** executes INSERT query via SQLx
-6. **Database** returns new expense ID
-7. **Service** updates wallet balance (transaction)
-8. **Handler** returns 201 Created with Location header
-9. **Client** receives response
+1. **Client** sends POST request to `/api/auth/login` with credentials
+2. **Route** matches and calls `login` handler
+3. **Handler** validates JSON body, calls AuthService
+4. **AuthService** queries database for user
+5. **AuthService** verifies password using bcrypt
+6. **AuthService** generates JWT token with user claims
+7. **Handler** returns 200 OK with token and user data
+8. **Client** stores token for subsequent requests
+
+**Creating an expense (protected endpoint):**
+
+1. **Client** sends POST request to `/resources/users/{login}/wallets/{id}/expenses` with JWT token
+2. **JWT Middleware** intercepts request, validates token, injects claims
+3. **Route** matches and calls `create_expense` handler
+4. **Handler** extracts claims, verifies authorization, validates JSON body
+5. **Service** receives `ExpenseInputDto`, validates business rules
+6. **Repository** executes INSERT query via SQLx
+7. **Database** returns new expense ID
+8. **Service** updates wallet balance (transaction)
+9. **Handler** returns 201 Created with Location header
+10. **Client** receives response
 
 ---
 
@@ -919,12 +1321,15 @@ Clear boundaries between:
 
 This architecture demonstrates:
 - **Clean separation of concerns** with layered architecture
+- **Stateless JWT authentication** with bcrypt password hashing
+- **Security-first design** with middleware-based authorization
 - **Type-safe database interactions** via SQLx
 - **Robust error handling** with custom error types
 - **High performance** through async/await and connection pooling
 - **Maintainability** through trait abstractions and DTOs
 - **Domain-driven design** with value objects (Money, DateRange)
 - **RESTful API design** following HTTP semantics
+- **Testability** with comprehensive mocking support
 
 The PlantUML diagrams above can be rendered using any PlantUML-compatible tool (e.g., PlantUML online server, VS Code extensions, or standalone PlantUML jar) to visualize the architecture.
 
@@ -941,6 +1346,12 @@ skinparam classAttributeIconSize 0
 
 ' ===== API LAYER =====
 package "API Layer" #F3E5F5 {
+    class AuthHandler {
+        +register(auth_service, user_dto): Result<HttpResponse>
+        +login(auth_service, login_dto): Result<HttpResponse>
+        +verify_token(auth_service, req): Result<HttpResponse>
+    }
+    
     class CategoryHandler {
         +get_categories(pool: Data<PgPool>): Result<HttpResponse>
     }
@@ -960,6 +1371,10 @@ package "API Layer" #F3E5F5 {
         +create_budget(pool, path, budget): Result<HttpResponse>
     }
     
+    class AuthRoutes {
+        +auth_routes(cfg: ServiceConfig)
+    }
+    
     class CategoryRoutes {
         +category_routes(cfg: ServiceConfig)
     }
@@ -971,10 +1386,44 @@ package "API Layer" #F3E5F5 {
     class RouteConfigurator {
         +configure_routes(cfg: ServiceConfig)
     }
+    
+    class JwtAuthMiddleware {
+        -jwt_secret: String
+        +new(jwt_secret: String): Self
+        +call(req: ServiceRequest): Future
+        -verify_jwt_token(token, secret): Result<Claims>
+    }
+    
+    class MiddlewareHelper {
+        +get_claims_from_request(req): Option<Claims>
+    }
 }
 
 ' ===== SERVICE LAYER =====
 package "Service Layer" #FFF3E0 {
+    interface AuthServiceTrait {
+        +register(user_dto: CreateUserDto): Result<UserDto>
+        +login(login_dto: LoginDto): Result<LoginResponse>
+        +verify_token(token: &str): Result<Claims>
+        +generate_token(user: &User): Result<String>
+        +hash_password(password: &str): Result<String>
+        +verify_password(password: &str, hash: &str): Result<bool>
+    }
+    
+    class AuthService {
+        -pool: PgPool
+        -jwt_secret: String
+        -jwt_expiration_hours: i64
+        +new(pool: PgPool, jwt_secret: String): Self
+        +with_expiration(hours: i64): Self
+        +register(user_dto: CreateUserDto): Result<UserDto>
+        +login(login_dto: LoginDto): Result<LoginResponse>
+        +verify_token(token: &str): Result<Claims>
+        +generate_token(user: &User): Result<String>
+        +hash_password(password: &str): Result<String>
+        +verify_password(password: &str, hash: &str): Result<bool>
+    }
+    
     interface CategoryServiceTrait {
         +get_categories(): Result<Vec<Category>>
     }
@@ -1041,6 +1490,23 @@ package "Domain Models" #FFEBEE {
         +last_name: Option<String>
         +password: String
         +admin: Option<bool>
+    }
+    
+    class LoginDto {
+        +login: String
+        +password: String
+    }
+    
+    class LoginResponse {
+        +token: String
+        +user: UserDto
+    }
+    
+    class Claims {
+        +sub: String
+        +admin: bool
+        +exp: i64
+        +iat: i64
     }
     
     class Category {
@@ -1188,6 +1654,8 @@ package "Configuration" #FCE4EC {
         +db_url: String
         +db_max_connections: u32
         +log_level: String
+        +jwt_secret: String
+        +jwt_expiration_hours: i64
         +from_env(): Result<Self>
     }
     
@@ -1207,18 +1675,31 @@ package "Utilities" #E0F2F1 {
 ' ===== RELATIONSHIPS =====
 
 ' API to Services
+AuthHandler ..> AuthService : uses
 CategoryHandler ..> CategoryService : uses
 UserHandler ..> UserService : uses
+AuthRoutes --> AuthHandler
 CategoryRoutes --> CategoryHandler
 UserRoutes --> UserHandler
+RouteConfigurator --> AuthRoutes
 RouteConfigurator --> CategoryRoutes
 RouteConfigurator --> UserRoutes
+JwtAuthMiddleware ..> AuthService : validates tokens
+UserHandler ..> MiddlewareHelper : extracts claims
 
 ' Service implementations
+AuthService ..|> AuthServiceTrait : implements
 CategoryService ..|> CategoryServiceTrait : implements
 UserService ..|> UserServiceTrait : implements
 
 ' Services to Models
+AuthService ..> User : uses
+AuthService ..> UserDto : uses
+AuthService ..> CreateUserDto : uses
+AuthService ..> LoginDto : uses
+AuthService ..> LoginResponse : uses
+AuthService ..> Claims : uses
+AuthService ..> AppError : throws
 CategoryService ..> Category : uses
 CategoryService ..> AppError : throws
 UserService ..> User : uses
@@ -1233,6 +1714,11 @@ UserService ..> DateRange : uses
 UserService ..> AppError : throws
 
 ' Handlers to Models
+AuthHandler ..> CreateUserDto : uses
+AuthHandler ..> LoginDto : uses
+AuthHandler ..> LoginResponse : uses
+AuthHandler ..> Claims : uses
+AuthHandler ..> AppError : throws
 CategoryHandler ..> Category : uses
 CategoryHandler ..> AppError : throws
 UserHandler ..> UserDto : uses
@@ -1261,6 +1747,9 @@ Summary "1" *-- "3" Money : balance, total_expense, total_income
 ' DTO Conversions
 User .> UserDto : converts to
 CreateUserDto .> User : creates
+LoginDto ..> LoginResponse : produces
+LoginResponse *-- UserDto : contains
+LoginResponse *-- Claims : generates via JWT
 Wallet .> WalletDto : converts to
 ExpenseInputDto .> Expense : creates
 BudgetInputDto .> Budget : creates
@@ -1278,6 +1767,7 @@ Money ..> Validation : validates
 DateRange ..> Validation : validates
 
 ' Database
+AuthService ..> Repository : uses
 UserService ..> Repository : uses
 CategoryService ..> Repository : uses
 DatabaseInitializer --> MigrationRunner : uses
