@@ -20,6 +20,7 @@ FinGest is a RESTful API server for managing personal finances, including wallet
 - [Testing](#testing)
   - [Unit and Integration Tests](#unit-and-integration-tests)
   - [Postman Collection Testing](#postman-collection-testing)
+  - [Apache JMeter Performance Testing](#apache-jmeter-performance-testing)
 - [Docker Deployment](#docker-deployment)
 - [Contributing](#contributing)
 - [License](#license)
@@ -602,6 +603,95 @@ The local environment includes:
 
 For detailed instructions, troubleshooting, and advanced usage, see [tests/POSTMAN_TESTING_GUIDE.md](tests/POSTMAN_TESTING_GUIDE.md).
 
+### Apache JMeter Performance Testing
+
+The project includes a comprehensive Apache JMeter test plan for performance, load, and stress testing of all API endpoints.
+
+#### What's Included
+
+- **Complete API Coverage**: All 16 endpoints with realistic test scenarios
+- **Performance Benchmarking**: Response time and throughput measurement
+- **Load Testing**: Simulates 50 concurrent users over 5 minutes
+- **Stress Testing**: Tests system limits with 100 concurrent users
+- **Error Case Validation**: Tests proper error handling (400, 401, 404)
+- **Automated Assertions**: Validates response codes, JSON structure, and data
+- **Realistic Test Data**: Dynamic user creation, random amounts, timestamps
+- **Comprehensive Reporting**: Summary, aggregate, and graphical results
+
+#### Files Location
+
+```
+tests/
+├── fingest_performance_test.jmx    # JMeter test plan
+├── JMETER_TESTING_GUIDE.md         # Detailed testing guide
+└── API_ENDPOINT_COVERAGE.md        # Complete endpoint documentation
+```
+
+#### Quick Start with JMeter
+
+1. **Install Apache JMeter** (requires Java 8+):
+   ```bash
+   wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+   tar -xzf apache-jmeter-5.6.3.tgz
+   ```
+
+2. **Start the API**:
+   ```bash
+   docker compose up -d
+   cargo run --release
+   ```
+
+3. **Run Performance Tests**:
+   ```bash
+   # GUI mode (for test development)
+   apache-jmeter-5.6.3/bin/jmeter -t tests/fingest_performance_test.jmx
+   
+   # CLI mode (for actual performance testing)
+   apache-jmeter-5.6.3/bin/jmeter -n \
+     -t tests/fingest_performance_test.jmx \
+     -l results.jtl \
+     -e -o report/
+   ```
+
+4. **View Results**:
+   ```bash
+   # Open HTML report
+   open report/index.html
+   ```
+
+#### Test Plan Structure
+
+The JMeter test plan includes **7 thread groups**:
+
+1. **Authentication Flow** (10 threads) - Registration, login, token verification
+2. **Categories and Users** (5 threads) - Category and user operations
+3. **Wallet Operations** (10 threads) - Wallet CRUD with validation
+4. **Expense Operations** (15 threads) - Expense tracking and analytics
+5. **Budget Operations** (8 threads) - Budget management
+6. **Load Test** (50 threads, disabled by default) - Sustained load testing
+7. **Stress Test** (100 threads, disabled by default) - High-volume testing
+
+#### Key Features
+
+- ✅ **16/16 endpoints tested** with 24 test scenarios
+- ✅ **JWT authentication** with automatic token extraction
+- ✅ **Dynamic test data** generation for unique test runs
+- ✅ **Response assertions** for all requests
+- ✅ **Error case testing** for validation and edge cases
+- ✅ **Configurable variables** for different environments
+- ✅ **Multiple listeners** for different analysis needs
+- ✅ **CI/CD ready** for automated performance testing
+
+#### Performance Targets
+
+- Simple GET requests: < 100ms
+- POST/PUT requests: < 200ms
+- Complex queries: < 500ms
+- Error rate: 0% for functional tests
+- Throughput: Should scale linearly with thread count
+
+For detailed instructions, configuration options, and troubleshooting, see [tests/JMETER_TESTING_GUIDE.md](tests/JMETER_TESTING_GUIDE.md).
+
 ## Docker Deployment
 
 ### Building the Docker Image
@@ -659,6 +749,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Authentication Documentation](docs/authentication.md)
 - [API Examples](docs/api_examples.md)
 - [Postman Testing Guide](tests/POSTMAN_TESTING_GUIDE.md)
+- [JMeter Testing Guide](tests/JMETER_TESTING_GUIDE.md)
+- [API Endpoint Coverage](tests/API_ENDPOINT_COVERAGE.md)
 - [Architecture Overview](docs/money_manager_architecture.md)
 
 **Questions or Issues?** Please open an issue on GitHub.
