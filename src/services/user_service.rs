@@ -96,29 +96,40 @@ impl UserServiceTrait for UserService {
             .map_err(|e| AppError::BadRequestError(format!("Invalid value format: {}", e)))?;
         
         // For demonstration purposes, handle only simple fields
-        match field {
+        let rows_affected = match field {
             "firstName" => {
                 if let Some(first_name) = value_json.get("firstName").and_then(|v| v.as_str()) {
-                    sqlx::query("UPDATE account SET first_name = $1 WHERE login = $2")
+                    let result = sqlx::query("UPDATE account SET first_name = $1 WHERE login = $2")
                         .bind(first_name)
                         .bind(login)
                         .execute(&self.pool)
                         .await
                         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    result.rows_affected()
+                } else {
+                    return Err(AppError::BadRequestError("firstName value is required".to_string()));
                 }
             }
             "lastName" => {
                 if let Some(last_name) = value_json.get("lastName").and_then(|v| v.as_str()) {
-                    sqlx::query("UPDATE account SET last_name = $1 WHERE login = $2")
+                    let result = sqlx::query("UPDATE account SET last_name = $1 WHERE login = $2")
                         .bind(last_name)
                         .bind(login)
                         .execute(&self.pool)
                         .await
                         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                    result.rows_affected()
+                } else {
+                    return Err(AppError::BadRequestError("lastName value is required".to_string()));
                 }
             }
             // Add other fields as needed
             _ => return Err(AppError::BadRequestError(format!("Invalid field: {}", field))),
+        };
+
+        // Check if any rows were affected by the update
+        if rows_affected == 0 {
+            return Err(AppError::NotFoundError(format!("user does not exist: {}", login)));
         }
 
         Ok(())
