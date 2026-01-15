@@ -55,11 +55,14 @@ pub async fn create_wallet(
     let login = path.into_inner();
     
     let user_service = UserService::new(pool.get_ref().clone());
-    let wallet_id = user_service.add_wallet(&login, wallet.into_inner()).await?;
+    let created_wallet = user_service.add_wallet(&login, wallet.into_inner()).await?;
+    
+    // Build location header using the wallet ID
+    let location = format!("/resources/users/{}/wallets/{}", login, created_wallet.id.unwrap_or(0));
     
     Ok(HttpResponse::Created()
-        .append_header(("Location", ""))
-        .json(wallet_id))
+        .append_header(("Location", location))
+        .json(created_wallet))
 }
 
 // Handler for GET /resources/users/{login}/wallets/{id}/summary

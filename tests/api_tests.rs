@@ -130,8 +130,12 @@ impl UserServiceTrait for MockUserService {
         }
     }
     
-    async fn add_wallet(&self, _login: &str, _wallet: WalletDto) -> Result<i32, AppError> {
-        Ok(3)
+    async fn add_wallet(&self, _login: &str, wallet: WalletDto) -> Result<WalletDto, AppError> {
+        Ok(WalletDto {
+            id: Some(3),
+            name: wallet.name,
+            amount: wallet.amount,
+        })
     }
     
     async fn get_summary(&self, _login: &str, _wallet_id: i32, _date_range: DateRange) -> Result<Summary, AppError> {
@@ -396,8 +400,8 @@ async fn test_create_wallet_handler() {
             .route("/resources/users/{login}/wallets", web::post().to(|path: web::Path<String>, wallet: web::Json<WalletDto>| async move {
                 let _login = path.into_inner();
                 let mock = MockUserService;
-                let wallet_id = mock.add_wallet("testuser", wallet.into_inner()).await.unwrap();
-                actix_web::HttpResponse::Created().json(wallet_id)
+                let created_wallet = mock.add_wallet("testuser", wallet.into_inner()).await.unwrap();
+                actix_web::HttpResponse::Created().json(created_wallet)
             }))
             .app_data(web::Data::new(mock_service))
     )
@@ -417,8 +421,10 @@ async fn test_create_wallet_handler() {
     
     assert_eq!(resp.status(), 201);
     let body = test::read_body(resp).await;
-    let wallet_id: i32 = serde_json::from_slice(&body).unwrap();
-    assert_eq!(wallet_id, 3);
+    let created_wallet: WalletDto = serde_json::from_slice(&body).unwrap();
+    assert_eq!(created_wallet.id, Some(3));
+    assert_eq!(created_wallet.name, "New Wallet");
+    assert_eq!(created_wallet.amount.amount, BigDecimal::from(100));
 }
 
 #[actix_rt::test]

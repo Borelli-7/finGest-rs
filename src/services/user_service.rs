@@ -20,7 +20,7 @@ pub trait UserServiceTrait: Send + Sync {
     where
         T: serde::Serialize + std::fmt::Debug + Send + Sync + 'static;
     async fn get_wallets(&self, login: &str) -> Result<Vec<WalletDto>, AppError>;
-    async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<i32, AppError>;
+    async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, AppError>;
     async fn get_summary(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Summary, AppError>;
     async fn get_expenses(
         &self,
@@ -165,7 +165,7 @@ impl UserServiceTrait for UserService {
     // Additional method implementations would follow the same pattern
     // For brevity, I'm showing just a few of the key methods
     
-    async fn add_wallet(&self, login: &str, wallet_dto: WalletDto) -> Result<i32, AppError> {
+    async fn add_wallet(&self, login: &str, wallet_dto: WalletDto) -> Result<WalletDto, AppError> {
         // This would be implemented as a transaction to ensure data consistency
         let mut tx = self.pool.begin().await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -195,7 +195,12 @@ impl UserServiceTrait for UserService {
         tx.commit().await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         
-        Ok(wallet_id)
+        // Return the complete wallet data
+        Ok(WalletDto {
+            id: Some(wallet_id),
+            name: wallet_dto.name,
+            amount: wallet_dto.amount,
+        })
     }
 
     async fn get_summary(&self, login: &str, wallet_id: i32, _date_range: DateRange) -> Result<Summary, AppError> {
@@ -474,7 +479,7 @@ mod tests {
             where
                 T: serde::Serialize + std::fmt::Debug + Send + Sync + 'static;
             async fn get_wallets(&self, login: &str) -> Result<Vec<WalletDto>, AppError>;
-            async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<i32, AppError>;
+            async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, AppError>;
             async fn get_summary(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Summary, AppError>;
             async fn get_expenses(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Vec<Expense>, AppError>;
             async fn get_highest_expense(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Option<Expense>, AppError>;
