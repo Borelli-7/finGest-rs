@@ -1,5 +1,5 @@
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web::{middleware::Logger, web, App, HttpServer, HttpResponse};
 use dotenv::dotenv;
 use money_manager_api::{
     config::Config, 
@@ -7,6 +7,7 @@ use money_manager_api::{
     api::routes::configure_routes,
     services::{AuthService, AuthServiceTrait},
 };
+use serde_json::json;
 use sqlx::postgres::PgPoolOptions;
 use std::io;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -60,6 +61,24 @@ async fn main() -> io::Result<()> {
             .wrap(cors)
             .app_data(web::Data::new(pool.clone()))
             .app_data(auth_service.clone())
+            .app_data(web::JsonConfig::default().error_handler(|err, _req| {
+                // Custom JSON error handler for deserialization errors
+                let error_message = if err.to_string().contains("invalid digit") 
+                    || err.to_string().contains("invalid type") 
+                    || err.to_string().contains("expected") {
+                    "The amount is invalid"
+                } else {
+                    "Invalid request data"
+                };
+                
+                actix_web::error::InternalError::from_response(
+                    err,
+                    HttpResponse::BadRequest().json(json!({
+                        "status": "400",
+                        "message": error_message
+                    }))
+                ).into()
+            }))
             .configure(configure_routes)
     })
     .bind((config.host.as_str(), config.port))?

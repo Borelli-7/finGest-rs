@@ -1,6 +1,7 @@
 use actix_web::{web, HttpResponse, Responder};
 use sqlx::PgPool;
 use std::collections::HashMap;
+use validator::Validate;
 
 use crate::{
     errors::AppError,
@@ -53,6 +54,13 @@ pub async fn create_wallet(
     wallet: web::Json<WalletDto>,
 ) -> Result<impl Responder, AppError> {
     let login = path.into_inner();
+    
+    // Validate the wallet input
+    wallet
+        .validate()
+        .map_err(|_| AppError::ValidationError(
+            "The amount of wallet to be created is not valid".to_string()
+        ))?;
     
     let user_service = UserService::new(pool.get_ref().clone());
     let created_wallet = user_service.add_wallet(&login, wallet.into_inner()).await?;
