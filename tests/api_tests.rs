@@ -471,6 +471,68 @@ async fn test_create_wallet_invalid_amount() {
 }
 
 #[actix_rt::test]
+async fn test_create_wallet_invalid_amount_format() {
+    use money_manager_api::api::handlers::user_handler;
+    use sqlx::PgPool;
+    
+    // Create a mock pool
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .app_data(web::JsonConfig::default().error_handler(|err, _req| {
+                    let error_message = if err.to_string().contains("invalid digit") 
+                        || err.to_string().contains("invalid type") 
+                        || err.to_string().contains("expected") {
+                        "The amount is invalid"
+                    } else {
+                        "Invalid request data"
+                    };
+                    
+                    actix_web::error::InternalError::from_response(
+                        err,
+                        actix_web::HttpResponse::BadRequest().json(serde_json::json!({
+                            "status": "400",
+                            "message": error_message
+                        }))
+                    ).into()
+                }))
+                .route("/resources/users/{login}/wallets", web::post().to(user_handler::create_wallet))
+        )
+        .await;
+        
+        // Test with invalid JSON (string instead of number for amount)
+        let invalid_json = r#"{
+            "name": "Invalid Wallet",
+            "amount": {
+                "amount": "invalid_number",
+                "currency": "USD"
+            }
+        }"#;
+        
+        let req = test::TestRequest::post()
+            .uri("/resources/users/testuser/wallets")
+            .insert_header(("content-type", "application/json"))
+            .set_payload(invalid_json)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 400 Bad Request
+        assert_eq!(resp.status(), 400);
+        
+        // Check error response format
+        let body = test::read_body(resp).await;
+        let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(error.get("status").and_then(|v| v.as_str()), Some("400"));
+        assert_eq!(error.get("message").and_then(|v| v.as_str()), Some("The amount is invalid"));
+    }
+}
+
+#[actix_rt::test]
 async fn test_get_expenses_handler() {
     let mock_service = MockUserService;
     
