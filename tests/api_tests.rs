@@ -576,9 +576,9 @@ async fn test_create_expense_handler() {
                 "/resources/users/{login}/wallets/{id}/expenses",
                 web::post().to(
                     |user_service: web::Data<MockUserService>, path: web::Path<(String, i32)>, expense: web::Json<ExpenseInputDto>| async move {
-                        let (_login, _id) = path.into_inner();
+                        let (login, id) = path.into_inner();
                         let created_expense = user_service
-                            .add_expense("testuser", 1, expense.into_inner())
+                            .add_expense(&login, id, expense.into_inner())
                             .await
                             .unwrap();
                         HttpResponse::Created().json(created_expense)
