@@ -143,7 +143,7 @@ pub async fn create_expense(
     
     let expense_id = created_expense
         .id
-        .expect("Expected expense ID to be present after creating expense");
+        .expect("Expense ID should always be present after database insertion - this indicates a database constraint issue");
     let location = format!("/{}/wallets/{}/expenses/{}", login, id, expense_id);
     
     Ok(HttpResponse::Created()
