@@ -428,6 +428,49 @@ async fn test_create_wallet_handler() {
 }
 
 #[actix_rt::test]
+async fn test_create_wallet_invalid_amount() {
+    use money_manager_api::api::handlers::user_handler;
+    use sqlx::PgPool;
+    
+    // Create a mock pool (this test focuses on validation, not DB)
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .route("/resources/users/{login}/wallets", web::post().to(user_handler::create_wallet))
+        )
+        .await;
+        
+        // Test with negative amount
+        let invalid_wallet = WalletDto {
+            id: None,
+            name: "Invalid Wallet".to_string(),
+            amount: Money::new(BigDecimal::from(-100), None),
+        };
+        
+        let req = test::TestRequest::post()
+            .uri("/resources/users/testuser/wallets")
+            .set_json(&invalid_wallet)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 400 Bad Request
+        assert_eq!(resp.status(), 400);
+        
+        // Check error response format
+        let body = test::read_body(resp).await;
+        let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(error.get("message").is_some());
+        let message = error["message"].as_str().unwrap();
+        assert!(message.contains("not valid") || message.contains("amount"));
+    }
+}
+
+#[actix_rt::test]
 async fn test_get_expenses_handler() {
     let mock_service = MockUserService;
     
