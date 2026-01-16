@@ -22,7 +22,7 @@ pub struct Expense {
 }
 
 // DTO for expense input
-#[derive(Debug, Clone, Deserialize, Validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct ExpenseInputDto {
     #[validate(nested)]
     pub amount: Money,

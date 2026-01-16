@@ -139,13 +139,14 @@ pub async fn create_expense(
     let (login, id) = path.into_inner();
     
     let user_service = UserService::new(pool.get_ref().clone());
-    let expense_id = user_service.add_expense(&login, id, expense.into_inner()).await?;
+    let created_expense = user_service.add_expense(&login, id, expense.into_inner()).await?;
     
+    let expense_id = created_expense.id.unwrap_or(0);
     let location = format!("/{}/wallets/{}/expenses/{}", login, id, expense_id);
     
     Ok(HttpResponse::Created()
         .append_header(("Location", location))
-        .finish())
+        .json(created_expense))
 }
 
 // Handler for DELETE /resources/users/{login}/wallets/{wallet_id}/expenses/{expense_id}
