@@ -572,12 +572,19 @@ async fn test_create_expense_handler() {
     
     let app = test::init_service(
         App::new()
-            .route("/resources/users/{login}/wallets/{id}/expenses", web::post().to(|path: web::Path<(String, i32)>, expense: web::Json<ExpenseInputDto>| async move {
-                let (_login, _id) = path.into_inner();
-                let mock = MockUserService;
-                let created_expense = mock.add_expense("testuser", 1, expense.into_inner()).await.unwrap();
-                HttpResponse::Created().json(created_expense)
-            }))
+            .route(
+                "/resources/users/{login}/wallets/{id}/expenses",
+                web::post().to(
+                    |user_service: web::Data<MockUserService>, path: web::Path<(String, i32)>, expense: web::Json<ExpenseInputDto>| async move {
+                        let (_login, _id) = path.into_inner();
+                        let created_expense = user_service
+                            .add_expense("testuser", 1, expense.into_inner())
+                            .await
+                            .unwrap();
+                        HttpResponse::Created().json(created_expense)
+                    },
+                ),
+            )
             .app_data(web::Data::new(mock_service))
     )
     .await;
