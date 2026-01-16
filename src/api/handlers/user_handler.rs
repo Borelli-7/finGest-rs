@@ -141,7 +141,9 @@ pub async fn create_expense(
     let user_service = UserService::new(pool.get_ref().clone());
     let created_expense = user_service.add_expense(&login, id, expense.into_inner()).await?;
     
-    let expense_id = created_expense.id.unwrap_or(0);
+    let expense_id = created_expense
+        .id
+        .expect("Expected expense ID to be present after creating expense");
     let location = format!("/{}/wallets/{}/expenses/{}", login, id, expense_id);
     
     Ok(HttpResponse::Created()
