@@ -612,6 +612,7 @@ async fn test_create_expense_handler() {
     assert_eq!(created_expense.description, "Test expense");
     assert_eq!(created_expense.category.name, "Food");
     assert_eq!(created_expense.amount.currency, "USD");
+    assert_eq!(created_expense.amount.amount, BigDecimal::from(50));
 }
 
 
