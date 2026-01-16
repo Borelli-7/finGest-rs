@@ -607,8 +607,7 @@ async fn test_create_expense_handler() {
     let created_expense: Expense = serde_json::from_slice(&body).unwrap();
     
     // Verify the created expense has all the expected fields
-    assert!(created_expense.id.is_some());
-    assert_eq!(created_expense.id.unwrap(), 2);
+    assert_eq!(created_expense.id, Some(2));
     assert_eq!(created_expense.description, "Test expense");
     assert_eq!(created_expense.category.name, "Food");
     assert_eq!(created_expense.amount.currency, "USD");
