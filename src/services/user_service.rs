@@ -39,7 +39,7 @@ pub trait UserServiceTrait: Send + Sync {
         login: &str,
         wallet_id: i32,
         expense: ExpenseInputDto,
-    ) -> Result<i32, AppError>;
+    ) -> Result<Expense, AppError>;
     async fn delete_expense(&self, login: &str, wallet_id: i32, expense_id: i32) -> Result<(), AppError>;
     async fn get_counted_categories(
         &self,
@@ -357,7 +357,7 @@ impl UserServiceTrait for UserService {
         Ok(highest_expense)
     }
 
-    async fn add_expense(&self, login: &str, wallet_id: i32, expense: ExpenseInputDto) -> Result<i32, AppError> {
+    async fn add_expense(&self, login: &str, wallet_id: i32, expense: ExpenseInputDto) -> Result<Expense, AppError> {
         // First check if the wallet belongs to the user
         let belongs_to_user = sqlx::query(
             "SELECT 1 FROM account_wallet 
@@ -390,12 +390,12 @@ impl UserServiceTrait for UserService {
             return Err(AppError::BadRequestError(format!("Category {} with profit={} does not exist", expense.category.name, expense.category.profit)));
         }
 
-        // Insert the expense
-        let expense_id = sqlx::query(
+        // Insert the expense and fetch the complete created expense
+        let created_expense = sqlx::query(
             "INSERT INTO expense 
             (wallet_id, amount_amount, amount_currency, date, description, category_name, category_profit) 
             VALUES ($1, $2, $3, TO_DATE($4, 'YYYY-MM-DD'), $5, $6, $7) 
-            RETURNING id"
+            RETURNING id, amount_amount, amount_currency, date, description, category_name, category_profit"
         )
         .bind(wallet_id)
         .bind(&expense.amount.amount)
@@ -404,23 +404,37 @@ impl UserServiceTrait for UserService {
         .bind(&expense.description)
         .bind(&expense.category.name)
         .bind(expense.category.profit)
-        .map(|row: sqlx::postgres::PgRow| row.get::<i32, _>("id"))
+        .map(|row: sqlx::postgres::PgRow| {
+            Expense {
+                id: row.get("id"),
+                amount: Money {
+                    amount: row.get("amount_amount"),
+                    currency: row.get("amount_currency"),
+                },
+                date: row.get("date"),
+                description: row.get("description"),
+                category: Category {
+                    name: row.get("category_name"),
+                    profit: row.get("category_profit"),
+                },
+            }
+        })
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
         // Update the wallet amount if needed
         // Note: This is a simplification. In a real app, you might want to update the wallet amount based on the expense type (profit or not)
-        if !expense.category.profit {
+        if !created_expense.category.profit {
             // Expense reduces the wallet amount
             sqlx::query(
                 "UPDATE wallet 
                 SET amount_amount = amount_amount - $1 
                 WHERE id = $2 AND amount_currency = $3"
             )
-            .bind(&expense.amount.amount)
+            .bind(&created_expense.amount.amount)
             .bind(wallet_id)
-            .bind(&expense.amount.currency)
+            .bind(&created_expense.amount.currency)
             .execute(&self.pool)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -431,15 +445,15 @@ impl UserServiceTrait for UserService {
                 SET amount_amount = amount_amount + $1 
                 WHERE id = $2 AND amount_currency = $3"
             )
-            .bind(&expense.amount.amount)
+            .bind(&created_expense.amount.amount)
             .bind(wallet_id)
-            .bind(&expense.amount.currency)
+            .bind(&created_expense.amount.currency)
             .execute(&self.pool)
             .await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
         }
 
-        Ok(expense_id)
+        Ok(created_expense)
     }
 
     async fn delete_expense(&self, _login: &str, _wallet_id: i32, _expense_id: i32) -> Result<(), AppError> {
@@ -483,7 +497,7 @@ mod tests {
             async fn get_summary(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Summary, AppError>;
             async fn get_expenses(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Vec<Expense>, AppError>;
             async fn get_highest_expense(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Option<Expense>, AppError>;
-            async fn add_expense(&self, login: &str, wallet_id: i32, expense: ExpenseInputDto) -> Result<i32, AppError>;
+            async fn add_expense(&self, login: &str, wallet_id: i32, expense: ExpenseInputDto) -> Result<Expense, AppError>;
             async fn delete_expense(&self, login: &str, wallet_id: i32, expense_id: i32) -> Result<(), AppError>;
             async fn get_counted_categories(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<HashMap<String, BigDecimal>, AppError>;
             async fn get_budgets(&self, login: &str, start: DateRange, end: DateRange) -> Result<Vec<BudgetOutputDto>, AppError>;

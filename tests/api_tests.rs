@@ -1,6 +1,6 @@
 //! Integration tests for the Money Manager API
 
-use actix_web::{test, web, App};
+use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 use async_trait::async_trait;
 use bigdecimal::BigDecimal;
 use chrono::NaiveDate;
@@ -167,8 +167,14 @@ impl UserServiceTrait for MockUserService {
         }))
     }
     
-    async fn add_expense(&self, _login: &str, _wallet_id: i32, _expense: ExpenseInputDto) -> Result<i32, AppError> {
-        Ok(2)
+    async fn add_expense(&self, _login: &str, _wallet_id: i32, expense: ExpenseInputDto) -> Result<Expense, AppError> {
+        Ok(Expense {
+            id: Some(2),
+            amount: expense.amount,
+            date: expense.date,
+            description: expense.description,
+            category: expense.category,
+        })
     }
     
     async fn delete_expense(&self, _login: &str, _wallet_id: i32, _expense_id: i32) -> Result<(), AppError> {
@@ -559,6 +565,54 @@ async fn test_get_expenses_handler() {
     assert_eq!(expenses.len(), 1);
     assert_eq!(expenses[0].description, "Grocery shopping");
 }
+
+#[actix_rt::test]
+async fn test_create_expense_handler() {
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .route(
+                "/resources/users/{login}/wallets/{id}/expenses",
+                web::post().to(
+                    |user_service: web::Data<MockUserService>, path: web::Path<(String, i32)>, expense: web::Json<ExpenseInputDto>| async move {
+                        let (login, id) = path.into_inner();
+                        let created_expense = user_service
+                            .add_expense(&login, id, expense.into_inner())
+                            .await
+                            .unwrap();
+                        HttpResponse::Created().json(created_expense)
+                    },
+                ),
+            )
+            .app_data(web::Data::new(mock_service))
+    )
+    .await;
+    
+    let expense_input = ExpenseInputDto {
+        amount: Money::new(BigDecimal::from(50), Some("USD".to_string())),
+        date: NaiveDate::from_ymd_opt(2023, 6, 20).unwrap(),
+        description: "Test expense".to_string(),
+        category: Category::new("Food".to_string(), false),
+    };
+    
+    let req = test::TestRequest::post()
+        .uri("/resources/users/testuser/wallets/1/expenses")
+        .set_json(&expense_input)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let body = test::read_body(resp).await;
+    let created_expense: Expense = serde_json::from_slice(&body).unwrap();
+    
+    // Verify the created expense has all the expected fields
+    assert_eq!(created_expense.id, Some(2));
+    assert_eq!(created_expense.description, "Test expense");
+    assert_eq!(created_expense.category.name, "Food");
+    assert_eq!(created_expense.amount.currency, "USD");
+}
+
 
 // To run actual integration tests with a real database:
 // #[actix_rt::test]
