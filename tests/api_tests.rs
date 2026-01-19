@@ -11,7 +11,6 @@ use money_manager_api::{
     api::handlers::auth_handler,
 };
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 
 // Define a mock CategoryService for testing
 struct MockCategoryService;
@@ -204,6 +203,28 @@ impl UserServiceTrait for MockUserService {
     async fn add_budget(&self, _login: &str, _budget: Budget) -> Result<i32, AppError> {
         Ok(1)
     }
+}
+
+// Test handler for creating expenses - mirrors production handler structure
+async fn mock_create_expense_handler(
+    user_service: web::Data<MockUserService>,
+    path: web::Path<(String, i32)>,
+    expense: web::Json<ExpenseInputDto>,
+) -> Result<HttpResponse, AppError> {
+    let (login, id) = path.into_inner();
+    
+    let created_expense = user_service
+        .add_expense(&login, id, expense.into_inner())
+        .await?;
+    
+    let expense_id = created_expense
+        .id
+        .expect("Expense ID should always be present after database insertion - this indicates a database constraint issue");
+    let location = format!("/{}/wallets/{}/expenses/{}", login, id, expense_id);
+    
+    Ok(HttpResponse::Created()
+        .append_header(("Location", location))
+        .json(created_expense))
 }
 
 #[actix_rt::test]
@@ -574,16 +595,7 @@ async fn test_create_expense_handler() {
         App::new()
             .route(
                 "/resources/users/{login}/wallets/{id}/expenses",
-                web::post().to(
-                    |user_service: web::Data<MockUserService>, path: web::Path<(String, i32)>, expense: web::Json<ExpenseInputDto>| async move {
-                        let (login, id) = path.into_inner();
-                        let created_expense = user_service
-                            .add_expense(&login, id, expense.into_inner())
-                            .await
-                            .unwrap();
-                        HttpResponse::Created().json(created_expense)
-                    },
-                ),
+                web::post().to(mock_create_expense_handler),
             )
             .app_data(web::Data::new(mock_service))
     )
