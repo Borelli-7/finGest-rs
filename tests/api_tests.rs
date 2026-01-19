@@ -206,8 +206,11 @@ impl UserServiceTrait for MockUserService {
         ])
     }
     
-    async fn add_budget(&self, _login: &str, _budget: Budget) -> Result<i32, AppError> {
-        Ok(1)
+    async fn add_budget(&self, _login: &str, budget: Budget) -> Result<Budget, AppError> {
+        Ok(Budget {
+            id: Some(1),
+            ..budget
+        })
     }
 }
 
@@ -684,6 +687,138 @@ async fn test_delete_expense_not_found() {
     assert_eq!(error_response["status"], "404");
     assert!(error_response["message"].as_str().unwrap().contains("999999"));
     assert!(error_response["message"].as_str().unwrap().contains("does not exist"));
+}
+
+#[actix_rt::test]
+async fn test_create_budget_handler() {
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .route(
+                "/resources/users/{login}/budgets",
+                web::post().to(
+                    |user_service: web::Data<MockUserService>, path: web::Path<String>, budget: web::Json<money_manager_api::models::BudgetInputDto>| async move {
+                        let login = path.into_inner();
+                        let budget_model: Budget = budget.into_inner().into();
+                        let created_budget = user_service
+                            .add_budget(&login, budget_model)
+                            .await
+                            .unwrap();
+                        
+                        let budget_id = created_budget.id.unwrap();
+                        let location = format!("/{}/budgets/{}", login, budget_id);
+                        
+                        HttpResponse::Created()
+                            .append_header(("Location", location))
+                            .json(created_budget)
+                    },
+                ),
+            )
+            .app_data(web::Data::new(mock_service))
+    )
+    .await;
+    
+    let budget_input = money_manager_api::models::BudgetInputDto {
+        category: Category::new("Food".to_string(), false),
+        total: Money::new(BigDecimal::from(500), Some("USD".to_string())),
+        date_range: DateRange {
+            start: NaiveDate::from_ymd_opt(2025, 11, 1).unwrap(),
+            end: NaiveDate::from_ymd_opt(2025, 11, 30).unwrap(),
+        },
+    };
+    
+    let req = test::TestRequest::post()
+        .uri("/resources/users/testuser/budgets")
+        .set_json(&budget_input)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert HTTP 201 Created status
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    
+    // Assert Location header is present
+    let location_header = resp.headers().get("Location");
+    assert!(location_header.is_some());
+    assert_eq!(location_header.unwrap().to_str().unwrap(), "/testuser/budgets/1");
+    
+    // Assert response body contains the created Budget
+    let body = test::read_body(resp).await;
+    let created_budget: Budget = serde_json::from_slice(&body).unwrap();
+    
+    // Verify the created budget has all the expected fields
+    assert_eq!(created_budget.id, Some(1));
+    assert_eq!(created_budget.category.name, "Food");
+    assert_eq!(created_budget.category.profit, false);
+    assert_eq!(created_budget.total.amount, BigDecimal::from(500));
+    assert_eq!(created_budget.total.currency, "USD");
+    assert_eq!(created_budget.date_range.start, NaiveDate::from_ymd_opt(2025, 11, 1).unwrap());
+    assert_eq!(created_budget.date_range.end, NaiveDate::from_ymd_opt(2025, 11, 30).unwrap());
+}
+
+#[actix_rt::test]
+async fn test_create_budget_returns_json_response() {
+    // This test specifically validates that the response is JSON and not empty
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .route(
+                "/resources/users/{login}/budgets",
+                web::post().to(
+                    |user_service: web::Data<MockUserService>, path: web::Path<String>, budget: web::Json<money_manager_api::models::BudgetInputDto>| async move {
+                        let login = path.into_inner();
+                        let budget_model: Budget = budget.into_inner().into();
+                        let created_budget = user_service
+                            .add_budget(&login, budget_model)
+                            .await
+                            .unwrap();
+                        
+                        let budget_id = created_budget.id.unwrap();
+                        let location = format!("/{}/budgets/{}", login, budget_id);
+                        
+                        HttpResponse::Created()
+                            .append_header(("Location", location))
+                            .json(created_budget)
+                    },
+                ),
+            )
+            .app_data(web::Data::new(mock_service))
+    )
+    .await;
+    
+    let budget_input = money_manager_api::models::BudgetInputDto {
+        category: Category::new("Entertainment".to_string(), false),
+        total: Money::new(BigDecimal::from(300), Some("PLN".to_string())),
+        date_range: DateRange {
+            start: NaiveDate::from_ymd_opt(2025, 12, 1).unwrap(),
+            end: NaiveDate::from_ymd_opt(2025, 12, 31).unwrap(),
+        },
+    };
+    
+    let req = test::TestRequest::post()
+        .uri("/resources/users/user3/budgets")
+        .set_json(&budget_input)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Verify status code
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    
+    // Verify Content-Type is application/json
+    let content_type = resp.headers().get("content-type");
+    assert!(content_type.is_some());
+    assert!(content_type.unwrap().to_str().unwrap().contains("application/json"));
+    
+    // Verify response body is not empty
+    let body = test::read_body(resp).await;
+    assert!(!body.is_empty());
+    
+    // Verify it can be deserialized to Budget
+    let budget: Budget = serde_json::from_slice(&body).unwrap();
+    assert!(budget.id.is_some());
+    assert_eq!(budget.category.name, "Entertainment");
+    assert_eq!(budget.total.currency, "PLN");
 }
 
 

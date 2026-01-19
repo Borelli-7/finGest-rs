@@ -30,7 +30,7 @@ pub struct BudgetOutputDto {
 }
 
 // DTO for budget input
-#[derive(Debug, Clone, Deserialize, Validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct BudgetInputDto {
     #[validate(nested)]
     pub category: Category,
