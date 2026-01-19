@@ -456,8 +456,39 @@ impl UserServiceTrait for UserService {
         Ok(created_expense)
     }
 
-    async fn delete_expense(&self, _login: &str, _wallet_id: i32, _expense_id: i32) -> Result<(), AppError> {
-        // Implementation placeholder
+    async fn delete_expense(&self, login: &str, wallet_id: i32, expense_id: i32) -> Result<(), AppError> {
+        // First verify the wallet belongs to the user
+        let belongs_to_user = sqlx::query(
+            "SELECT 1 FROM account_wallet 
+            WHERE account_login = $1 AND wallet_id = $2"
+        )
+        .bind(login)
+        .bind(wallet_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        .is_some();
+
+        if !belongs_to_user {
+            return Err(AppError::NotFoundError(format!("Wallet with id {} not found for user {}", wallet_id, login)));
+        }
+
+        // Attempt to delete the expense and check if any rows were affected
+        let result = sqlx::query(
+            "DELETE FROM expense 
+            WHERE id = $1 AND wallet_id = $2"
+        )
+        .bind(expense_id)
+        .bind(wallet_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // If no rows were affected, the expense doesn't exist
+        if result.rows_affected() == 0 {
+            return Err(AppError::NotFoundError(format!("The expense with id {} does not exist", expense_id)));
+        }
+
         Ok(())
     }
 
