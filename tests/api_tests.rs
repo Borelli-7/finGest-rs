@@ -1,6 +1,6 @@
 //! Integration tests for the Money Manager API
 
-use actix_web::{test, web, App, HttpResponse, http::StatusCode};
+use actix_web::{test, web, App, HttpResponse, http::StatusCode, ResponseError};
 use async_trait::async_trait;
 use bigdecimal::BigDecimal;
 use chrono::NaiveDate;
@@ -11,7 +11,6 @@ use money_manager_api::{
     api::handlers::auth_handler,
 };
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 
 // Define a mock CategoryService for testing
 struct MockCategoryService;
@@ -177,8 +176,14 @@ impl UserServiceTrait for MockUserService {
         })
     }
     
-    async fn delete_expense(&self, _login: &str, _wallet_id: i32, _expense_id: i32) -> Result<(), AppError> {
-        Ok(())
+    async fn delete_expense(&self, _login: &str, wallet_id: i32, expense_id: i32) -> Result<(), AppError> {
+        // Mock behavior: simulate NotFoundError for non-existent expenses
+        // Assume expense ID 1 exists in wallet 1
+        if wallet_id == 1 && expense_id == 1 {
+            Ok(())
+        } else {
+            Err(AppError::NotFoundError(format!("The expense with id {} does not exist", expense_id)))
+        }
     }
     
     async fn get_counted_categories(&self, _login: &str, _wallet_id: i32, _date_range: DateRange) -> Result<HashMap<String, BigDecimal>, AppError> {
@@ -611,6 +616,74 @@ async fn test_create_expense_handler() {
     assert_eq!(created_expense.description, "Test expense");
     assert_eq!(created_expense.category.name, "Food");
     assert_eq!(created_expense.amount.currency, "USD");
+}
+
+#[actix_rt::test]
+async fn test_delete_expense_success() {
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .route(
+                "/resources/users/{login}/wallets/{wallet_id}/expenses/{expense_id}",
+                web::delete().to(
+                    |user_service: web::Data<MockUserService>, path: web::Path<(String, i32, i32)>| async move {
+                        let (login, wallet_id, expense_id) = path.into_inner();
+                        match user_service.delete_expense(&login, wallet_id, expense_id).await {
+                            Ok(()) => HttpResponse::NoContent().finish(),
+                            Err(e) => e.error_response(),
+                        }
+                    },
+                ),
+            )
+            .app_data(web::Data::new(mock_service))
+    )
+    .await;
+    
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/testuser/wallets/1/expenses/1")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+}
+
+#[actix_rt::test]
+async fn test_delete_expense_not_found() {
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .route(
+                "/resources/users/{login}/wallets/{wallet_id}/expenses/{expense_id}",
+                web::delete().to(
+                    |user_service: web::Data<MockUserService>, path: web::Path<(String, i32, i32)>| async move {
+                        let (login, wallet_id, expense_id) = path.into_inner();
+                        match user_service.delete_expense(&login, wallet_id, expense_id).await {
+                            Ok(()) => HttpResponse::NoContent().finish(),
+                            Err(e) => e.error_response(),
+                        }
+                    },
+                ),
+            )
+            .app_data(web::Data::new(mock_service))
+    )
+    .await;
+    
+    // Try to delete a non-existent expense (ID 999999)
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/testuser/wallets/7/expenses/999999")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    
+    // Verify the response body contains the expected error message
+    let body = test::read_body(resp).await;
+    let error_response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(error_response["status"], "404");
+    assert!(error_response["message"].as_str().unwrap().contains("999999"));
+    assert!(error_response["message"].as_str().unwrap().contains("does not exist"));
 }
 
 
