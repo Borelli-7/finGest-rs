@@ -53,7 +53,7 @@ pub trait UserServiceTrait: Send + Sync {
         start: DateRange,
         end: DateRange,
     ) -> Result<Vec<BudgetOutputDto>, AppError>;
-    async fn add_budget(&self, login: &str, budget: Budget) -> Result<i32, AppError>;
+    async fn add_budget(&self, login: &str, budget: Budget) -> Result<Budget, AppError>;
 }
 
 pub struct UserService {
@@ -502,9 +502,14 @@ impl UserServiceTrait for UserService {
         Ok(Vec::new())
     }
 
-    async fn add_budget(&self, _login: &str, _budget: Budget) -> Result<i32, AppError> {
-        // Implementation placeholder
-        Ok(1)
+    async fn add_budget(&self, _login: &str, budget: Budget) -> Result<Budget, AppError> {
+        // Implementation placeholder - in production, this would insert into database
+        // and return the budget with the generated ID
+        let created_budget = Budget {
+            id: Some(1),
+            ..budget
+        };
+        Ok(created_budget)
     }
 }
 
@@ -532,7 +537,7 @@ mod tests {
             async fn delete_expense(&self, login: &str, wallet_id: i32, expense_id: i32) -> Result<(), AppError>;
             async fn get_counted_categories(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<HashMap<String, BigDecimal>, AppError>;
             async fn get_budgets(&self, login: &str, start: DateRange, end: DateRange) -> Result<Vec<BudgetOutputDto>, AppError>;
-            async fn add_budget(&self, login: &str, budget: Budget) -> Result<i32, AppError>;
+            async fn add_budget(&self, login: &str, budget: Budget) -> Result<Budget, AppError>;
         }
     }
 }

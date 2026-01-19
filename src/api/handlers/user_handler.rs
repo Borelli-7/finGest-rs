@@ -217,11 +217,14 @@ pub async fn create_budget(
     let login = path.into_inner();
     
     let user_service = UserService::new(pool.get_ref().clone());
-    let budget_id = user_service.add_budget(&login, budget.0.into()).await?;
+    let created_budget = user_service.add_budget(&login, budget.0.into()).await?;
     
+    let budget_id = created_budget
+        .id
+        .expect("Budget ID must be present after creation - this indicates a bug in the budget creation logic");
     let location = format!("/{}/budgets/{}", login, budget_id);
     
     Ok(HttpResponse::Created()
         .append_header(("Location", location))
-        .finish())
+        .json(created_budget))
 }
