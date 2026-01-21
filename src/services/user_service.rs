@@ -19,6 +19,7 @@ pub trait UserServiceTrait: Send + Sync {
     async fn update_user<T>(&self, login: &str, field: &str, value: HashMap<String, T>) -> Result<(), AppError>
     where
         T: serde::Serialize + std::fmt::Debug + Send + Sync + 'static;
+    async fn delete_user(&self, login: &str) -> Result<(), AppError>;
     async fn get_wallets(&self, login: &str) -> Result<Vec<WalletDto>, AppError>;
     async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, AppError>;
     async fn get_summary(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Summary, AppError>;
@@ -130,6 +131,34 @@ impl UserServiceTrait for UserService {
         // Check if any rows were affected by the update
         if rows_affected == 0 {
             return Err(AppError::NotFoundError(format!("user does not exist: {}", login)));
+        }
+
+        Ok(())
+    }
+
+    async fn delete_user(&self, login: &str) -> Result<(), AppError> {
+        // Check if user exists first
+        let user_exists = sqlx::query("SELECT 1 FROM account WHERE login = $1")
+            .bind(login)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .is_some();
+
+        if !user_exists {
+            return Err(AppError::NotFoundError(format!("User `{}` does not exist", login)));
+        }
+
+        // Delete user (cascading deletes should handle related records)
+        let result = sqlx::query("DELETE FROM account WHERE login = $1")
+            .bind(login)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // Double-check that the deletion was successful
+        if result.rows_affected() == 0 {
+            return Err(AppError::DatabaseError("Failed to delete user".to_string()));
         }
 
         Ok(())
@@ -528,6 +557,7 @@ mod tests {
             async fn update_user<T>(&self, login: &str, field: &str, value: HashMap<String, T>) -> Result<(), AppError>
             where
                 T: serde::Serialize + std::fmt::Debug + Send + Sync + 'static;
+            async fn delete_user(&self, login: &str) -> Result<(), AppError>;
             async fn get_wallets(&self, login: &str) -> Result<Vec<WalletDto>, AppError>;
             async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, AppError>;
             async fn get_summary(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Summary, AppError>;

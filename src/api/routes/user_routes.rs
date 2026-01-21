@@ -8,6 +8,7 @@ pub fn user_routes(cfg: &mut web::ServiceConfig) {
             // User endpoints
             .route("", web::get().to(user_handler::get_users))
             .route("/{login}", web::put().to(user_handler::update_user))
+            .route("/{login}", web::delete().to(user_handler::delete_user))
             
             // Wallet endpoints
             .route("/{login}/wallets", web::get().to(user_handler::get_wallets))
