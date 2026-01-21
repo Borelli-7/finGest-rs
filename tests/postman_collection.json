@@ -1,37 +1,13 @@
 {
   "info": {
+    "_postman_id": "fingest-api-collection-v1",
     "name": "FinGest Money Manager API",
     "description": "Complete API collection for testing the FinGest Money Manager application. Includes authentication, user management, wallet operations, expense tracking, budget management, and category endpoints with comprehensive test scripts.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_postman_id": "fingest-api-collection-v1",
-    "version": "1.0.0"
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "auth": {
-    "type": "bearer",
-    "bearer": [
-      {
-        "key": "token",
-        "value": "{{auth_token}}",
-        "type": "string"
-      }
-    ]
-  },
-  "variable": [
-    {
-      "key": "base_url",
-      "value": "{{base_url}}",
-      "type": "string"
-    },
-    {
-      "key": "auth_token",
-      "value": "",
-      "type": "string"
-    }
-  ],
   "item": [
     {
       "name": "Authentication",
-      "description": "Authentication endpoints for user registration, login, and token verification",
       "item": [
         {
           "name": "Register User - Success",
@@ -40,6 +16,10 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Register User - Success (201)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 201 Created', function () {",
                   "    pm.response.to.have.status(201);",
                   "});",
@@ -52,9 +32,18 @@
                   "    pm.expect(jsonData).to.have.property('admin');",
                   "});",
                   "",
+                  "pm.test('Schema validation - data types are correct', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.login).to.be.a('string');",
+                  "    pm.expect(jsonData.firstName).to.be.a('string');",
+                  "    pm.expect(jsonData.lastName).to.be.a('string');",
+                  "    pm.expect(jsonData.admin).to.be.a('boolean');",
+                  "});",
+                  "",
                   "pm.test('Password is not returned in response', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.not.have.property('password');",
+                  "    pm.expect(jsonData).to.not.have.property('passwordHash');",
                   "});",
                   "",
                   "pm.test('User login matches request', function () {",
@@ -62,14 +51,18 @@
                   "    pm.expect(jsonData.login).to.eql(pm.environment.get('test_user_login'));",
                   "});",
                   "",
-                  "pm.test('Response time is acceptable', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "pm.test('String fields are not empty', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.login.length).to.be.greaterThan(0);",
+                  "    pm.expect(jsonData.firstName.length).to.be.greaterThan(0);",
+                  "    pm.expect(jsonData.lastName.length).to.be.greaterThan(0);",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
           ],
+          "id": "2a45949d-9a56-4263-8d41-31d161034c8d",
           "request": {
             "method": "POST",
             "header": [
@@ -103,20 +96,61 @@
             {
               "listen": "test",
               "script": {
+                "id": "338b981a-8a54-4be0-a78c-07158942ecbe",
                 "exec": [
+                  "// ============================================",
+                  "// Register User - Duplicate Login (400 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 400 Bad Request', function () {",
                   "    pm.response.to.have.status(400);",
                   "});",
                   "",
-                  "pm.test('Response contains error message', function () {",
+                  "pm.test('Error response has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates duplicate/existing user', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('exist') || msg.includes('duplicate') || msg.includes('already') || msg.includes('taken');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('password');",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "85ddc191-d2f7-43ac-9084-d75c5574fa16",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "3f31307c-3ab6-4485-8707-997b687b29b1",
           "request": {
             "method": "POST",
             "header": [
@@ -150,20 +184,60 @@
             {
               "listen": "test",
               "script": {
+                "id": "0e31ca8b-2880-4efe-8c8b-ac2c587041a0",
                 "exec": [
+                  "// ============================================",
+                  "// Register User - Invalid Password (400 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 400 Bad Request', function () {",
                   "    pm.response.to.have.status(400);",
                   "});",
                   "",
-                  "pm.test('Response contains validation error', function () {",
+                  "pm.test('Error response has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates validation issue', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('password') || msg.includes('validation') || msg.includes('invalid') || msg.includes('short') || msg.includes('length');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "dde9b67f-ea86-4b3b-96c5-3923677cb689",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "59394080-f095-4bf8-8b58-709cf8a2ef77",
           "request": {
             "method": "POST",
             "header": [
@@ -198,6 +272,10 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Login - Success (200)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
@@ -209,6 +287,12 @@
                   "    pm.expect(jsonData.token.length).to.be.greaterThan(0);",
                   "});",
                   "",
+                  "pm.test('Token appears to be valid JWT format', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const tokenParts = jsonData.token.split('.');",
+                  "    pm.expect(tokenParts.length).to.eql(3);",
+                  "});",
+                  "",
                   "pm.test('Response contains user information', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.have.property('user');",
@@ -216,19 +300,33 @@
                   "    pm.expect(jsonData.user).to.have.property('admin');",
                   "});",
                   "",
-                  "pm.test('Save token to environment', function () {",
+                  "pm.test('User data types are correct', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.environment.set('auth_token', jsonData.token);",
+                  "    pm.expect(jsonData.user.login).to.be.a('string');",
+                  "    pm.expect(jsonData.user.admin).to.be.a('boolean');",
                   "});",
                   "",
-                  "pm.test('Response time is acceptable', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "pm.test('Password is not returned in user object', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.user).to.not.have.property('password');",
+                  "    pm.expect(jsonData.user).to.not.have.property('passwordHash');",
+                  "});",
+                  "",
+                  "pm.test('Save token to environment with validation', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.token && jsonData.token.length > 0) {",
+                  "        pm.environment.set('auth_token', jsonData.token);",
+                  "        pm.expect(pm.environment.get('auth_token')).to.eql(jsonData.token);",
+                  "    } else {",
+                  "        pm.expect.fail('Token is empty or missing');",
+                  "    }",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
           ],
+          "id": "d55c5e31-ed4e-4bfd-8a4c-ffb28292cf7f",
           "request": {
             "method": "POST",
             "header": [
@@ -262,20 +360,68 @@
             {
               "listen": "test",
               "script": {
+                "id": "c400e87d-d28f-4491-9810-3c11533c57bc",
                 "exec": [
+                  "// ============================================",
+                  "// Login - Invalid Credentials (401 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 401 Unauthorized', function () {",
                   "    pm.response.to.have.status(401);",
                   "});",
                   "",
-                  "pm.test('Response contains error message', function () {",
+                  "pm.test('Error response has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates authentication failure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('invalid') || msg.includes('incorrect') || msg.includes('unauthorized') || msg.includes('credentials') || msg.includes('failed');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('password');",
+                  "    pm.expect(jsonData).to.not.have.property('token');",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "});",
+                  "",
+                  "pm.test('Error message does not reveal if user exists', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    // Should use generic message, not reveal if user exists",
+                  "    pm.expect(message).to.not.include('user not found');",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "7004dfac-b7c6-4c39-8186-ccc15f99a87f",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "30a0f40d-f2f7-4a3c-a294-376609cfed4c",
           "request": {
             "method": "POST",
             "header": [
@@ -310,6 +456,10 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Verify Token - Success (200)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
@@ -324,12 +474,31 @@
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.have.property('login');",
                   "    pm.expect(jsonData).to.have.property('admin');",
+                  "});",
+                  "",
+                  "pm.test('User claims data types are correct', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.valid).to.be.a('boolean');",
+                  "    pm.expect(jsonData.login).to.be.a('string');",
+                  "    pm.expect(jsonData.admin).to.be.a('boolean');",
+                  "});",
+                  "",
+                  "pm.test('Login matches authenticated user', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.login).to.eql(pm.environment.get('test_user_login'));",
+                  "});",
+                  "",
+                  "pm.test('Response does not contain sensitive token data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('password');",
+                  "    pm.expect(jsonData).to.not.have.property('secret');",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
           ],
+          "id": "f34084c8-8ae7-49ad-bda6-47e39c9c99dc",
           "request": {
             "method": "GET",
             "header": [
@@ -360,14 +529,44 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Verify Token - Missing Token (401 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 401 Unauthorized', function () {",
                   "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates missing/invalid token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('token') || msg.includes('unauthorized') || msg.includes('missing') || msg.includes('required') || msg.includes('authentication');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
           ],
+          "id": "d768efd6-44a8-4e28-8df6-65e1d1f2eb5f",
           "request": {
             "auth": {
               "type": "noauth"
@@ -389,11 +588,12 @@
           },
           "response": []
         }
-      ]
+      ],
+      "id": "c7d8ddd8-170d-431e-bd3d-a2718bf95085",
+      "description": "Authentication endpoints for user registration, login, and token verification"
     },
     {
       "name": "Users",
-      "description": "User management endpoints",
       "item": [
         {
           "name": "Get All Users - Success",
@@ -402,6 +602,10 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Get All Users - Success (200)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
@@ -411,25 +615,41 @@
                   "    pm.expect(jsonData).to.be.an('array');",
                   "});",
                   "",
-                  "pm.test('Each user has required fields', function () {",
+                  "pm.test('Array is not empty (at least test user exists)', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    if (jsonData.length > 0) {",
-                  "        jsonData.forEach(user => {",
-                  "            pm.expect(user).to.have.property('login');",
-                  "            pm.expect(user).to.have.property('admin');",
-                  "            pm.expect(user).to.not.have.property('password');",
-                  "        });",
-                  "    }",
+                  "    pm.expect(jsonData.length).to.be.greaterThan(0);",
                   "});",
                   "",
-                  "pm.test('Response time is acceptable', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(1000);",
+                  "pm.test('Each user has required fields with correct types', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    jsonData.forEach(user => {",
+                  "        pm.expect(user).to.have.property('login');",
+                  "        pm.expect(user).to.have.property('admin');",
+                  "        pm.expect(user.login).to.be.a('string');",
+                  "        pm.expect(user.admin).to.be.a('boolean');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('No user has password field exposed', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    jsonData.forEach(user => {",
+                  "        pm.expect(user).to.not.have.property('password');",
+                  "        pm.expect(user).to.not.have.property('passwordHash');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('All login values are non-empty strings', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    jsonData.forEach(user => {",
+                  "        pm.expect(user.login.length).to.be.greaterThan(0);",
+                  "    });",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
           ],
+          "id": "e5fbb86c-aed6-4695-b580-ae2bbfc8841e",
           "request": {
             "method": "GET",
             "header": [],
@@ -453,26 +673,39 @@
             {
               "listen": "test",
               "script": {
+                "id": "3c2fa413-110e-43d4-9212-adf3772fe577",
                 "exec": [
-                  "pm.test('Status code is 200 OK', function () {",
-                  "    pm.response.to.have.status(200);",
+                  "// ============================================",
+                  "// Update User - Success (204)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 204 No Content', function () {",
+                  "    pm.response.to.have.status(204);",
                   "});",
                   "",
-                  "pm.test('Response contains updated user', function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('login');",
-                  "    pm.expect(jsonData).to.have.property('firstName');",
-                  "});",
-                  "",
-                  "pm.test('First name was updated', function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.firstName).to.eql('UpdatedName');",
+                  "pm.test('Response body is empty for 204', function () {",
+                  "    pm.expect(pm.response.text()).to.be.oneOf(['', undefined, null]);",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "762de3e0-c33a-44df-a320-3104b7368ca4",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "2f203105-7e08-4e53-8210-6a88bdcc87ea",
           "request": {
             "method": "PUT",
             "header": [
@@ -498,7 +731,8 @@
               "query": [
                 {
                   "key": "field",
-                  "value": "firstName"
+                  "value": "firstName",
+                  "uuid": "9e894ce1-deae-41b8-bdd6-ac1ac9085897"
                 }
               ]
             },
@@ -512,20 +746,61 @@
             {
               "listen": "test",
               "script": {
+                "id": "20a4674c-4a56-43e5-84b7-689ca4c90960",
                 "exec": [
+                  "// ============================================",
+                  "// Update User - Non-existent User (404 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 404 Not Found', function () {",
                   "    pm.response.to.have.status(404);",
                   "});",
                   "",
-                  "pm.test('Response contains error message', function () {",
+                  "pm.test('Error response has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates resource not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('not found') || msg.includes('does not exist') || msg.includes('no user') || msg.includes('unknown');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
+                  "    pm.expect(jsonData).to.not.have.property('query');",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "748c24d6-eb80-4ad4-aa13-dcc9559c7cc6",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "78ddf27f-c9bd-4f3f-bc93-c4ec88160077",
           "request": {
             "method": "PUT",
             "header": [
@@ -551,19 +826,71 @@
               "query": [
                 {
                   "key": "field",
-                  "value": "firstName"
+                  "value": "firstName",
+                  "uuid": "a6d0b3c8-20a1-4e95-b518-46c572de1cd9"
                 }
               ]
             },
             "description": "Attempt to update non-existent user - should fail"
           },
           "response": []
+        },
+        {
+          "name": "Delete User - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Delete User - Success (200/204)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 200 or 204', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});",
+                  "",
+                  "pm.test('Response indicates successful deletion', function () {",
+                  "    if (pm.response.code === 200) {",
+                  "        const jsonData = pm.response.json();",
+                  "        // If there's a response body, it should indicate success",
+                  "        if (jsonData.message) {",
+                  "            pm.expect(jsonData.message.toLowerCase()).to.satisfy(function(msg) {",
+                  "                return msg.includes('deleted') || msg.includes('removed') || msg.includes('success');",
+                  "            });",
+                  "        }",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-user-success-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}"
+              ]
+            },
+            "description": "Delete the test user"
+          },
+          "response": []
         }
-      ]
+      ],
+      "id": "9173f286-f534-4df2-af5b-1d04d8bf922f",
+      "description": "User management endpoints"
     },
     {
       "name": "Categories",
-      "description": "Category management endpoints",
       "item": [
         {
           "name": "Get All Categories - Success",
@@ -572,6 +899,10 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Get All Categories - Success (200)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
@@ -581,24 +912,40 @@
                   "    pm.expect(jsonData).to.be.an('array');",
                   "});",
                   "",
-                  "pm.test('Each category has required fields', function () {",
+                  "pm.test('Categories array is not empty', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    if (jsonData.length > 0) {",
-                  "        jsonData.forEach(category => {",
-                  "            pm.expect(category).to.have.property('name');",
-                  "            pm.expect(category).to.have.property('profit');",
-                  "        });",
-                  "    }",
+                  "    pm.expect(jsonData.length).to.be.greaterThan(0);",
                   "});",
                   "",
-                  "pm.test('Response time is acceptable', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "pm.test('Each category has required fields with correct types', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    jsonData.forEach(category => {",
+                  "        pm.expect(category).to.have.property('name');",
+                  "        pm.expect(category).to.have.property('profit');",
+                  "        pm.expect(category.name).to.be.a('string');",
+                  "        pm.expect(category.profit).to.be.a('boolean');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('All category names are non-empty strings', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    jsonData.forEach(category => {",
+                  "        pm.expect(category.name.length).to.be.greaterThan(0);",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Category names are unique', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const names = jsonData.map(c => c.name);",
+                  "    const uniqueNames = [...new Set(names)];",
+                  "    pm.expect(names.length).to.eql(uniqueNames.length);",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
           ],
+          "id": "47b6f002-24f0-467d-b5ff-14f52560ff7b",
           "request": {
             "method": "GET",
             "header": [],
@@ -616,11 +963,12 @@
           },
           "response": []
         }
-      ]
+      ],
+      "id": "7b326322-8a2e-45b4-9e00-e97dcb2491f6",
+      "description": "Category management endpoints"
     },
     {
       "name": "Wallets",
-      "description": "Wallet management endpoints",
       "item": [
         {
           "name": "Get User Wallets - Success",
@@ -629,6 +977,10 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Get User Wallets - Success (200)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
@@ -638,7 +990,7 @@
                   "    pm.expect(jsonData).to.be.an('array');",
                   "});",
                   "",
-                  "pm.test('Each wallet has required fields', function () {",
+                  "pm.test('Each wallet has required fields with correct types', function () {",
                   "    const jsonData = pm.response.json();",
                   "    if (jsonData.length > 0) {",
                   "        jsonData.forEach(wallet => {",
@@ -647,9 +999,48 @@
                   "            pm.expect(wallet).to.have.property('amount');",
                   "            pm.expect(wallet.amount).to.have.property('amount');",
                   "            pm.expect(wallet.amount).to.have.property('currency');",
+                  "            ",
+                  "            // Type validations",
+                  "            pm.expect(wallet.id).to.be.a('number');",
+                  "            pm.expect(wallet.name).to.be.a('string');",
+                  "            pm.expect(wallet.amount.currency).to.be.a('string');",
                   "        });",
-                  "        // Save first wallet ID for other tests",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Wallet IDs are positive integers', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(wallet => {",
+                  "            pm.expect(wallet.id).to.be.above(0);",
+                  "            pm.expect(Number.isInteger(wallet.id)).to.be.true;",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Wallet names are non-empty strings', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(wallet => {",
+                  "            pm.expect(wallet.name.length).to.be.greaterThan(0);",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Currency codes are valid format (3 letters)', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(wallet => {",
+                  "            pm.expect(wallet.amount.currency).to.match(/^[A-Z]{3}$/);",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Save first wallet ID for other tests with validation', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0 && jsonData[0].id) {",
                   "        pm.environment.set('test_wallet_id', jsonData[0].id);",
+                  "        pm.expect(pm.environment.get('test_wallet_id')).to.eql(jsonData[0].id.toString());",
                   "    }",
                   "});"
                 ],
@@ -657,6 +1048,7 @@
               }
             }
           ],
+          "id": "09ae4c0e-6ec1-4faa-a040-4589bf4c6e3e",
           "request": {
             "method": "GET",
             "header": [],
@@ -683,15 +1075,34 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Create Wallet - Success (201)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 201 Created', function () {",
                   "    pm.response.to.have.status(201);",
                   "});",
                   "",
-                  "pm.test('Response contains wallet data', function () {",
+                  "pm.test('Response contains wallet data with correct structure', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.have.property('id');",
                   "    pm.expect(jsonData).to.have.property('name');",
                   "    pm.expect(jsonData).to.have.property('amount');",
+                  "    pm.expect(jsonData.amount).to.have.property('amount');",
+                  "    pm.expect(jsonData.amount).to.have.property('currency');",
+                  "});",
+                  "",
+                  "pm.test('Wallet data types are correct', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.be.a('number');",
+                  "    pm.expect(jsonData.name).to.be.a('string');",
+                  "    pm.expect(jsonData.amount.currency).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Wallet ID is a positive integer', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.be.above(0);",
+                  "    pm.expect(Number.isInteger(jsonData.id)).to.be.true;",
                   "});",
                   "",
                   "pm.test('Wallet name matches request', function () {",
@@ -699,10 +1110,18 @@
                   "    pm.expect(jsonData.name).to.eql('Test Wallet');",
                   "});",
                   "",
-                  "pm.test('Save wallet ID for future tests', function () {",
+                  "pm.test('Currency code is valid format', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    if (jsonData.id) {",
+                  "    pm.expect(jsonData.amount.currency).to.match(/^[A-Z]{3}$/);",
+                  "});",
+                  "",
+                  "pm.test('Save wallet ID for future tests with validation', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.id && jsonData.id > 0) {",
                   "        pm.environment.set('created_wallet_id', jsonData.id);",
+                  "        pm.expect(pm.environment.get('created_wallet_id')).to.exist;",
+                  "    } else {",
+                  "        pm.expect.fail('Wallet ID is invalid or missing');",
                   "    }",
                   "});"
                 ],
@@ -710,6 +1129,7 @@
               }
             }
           ],
+          "id": "a4012c73-895f-420e-be6b-b5d28695242b",
           "request": {
             "method": "POST",
             "header": [
@@ -744,20 +1164,60 @@
             {
               "listen": "test",
               "script": {
+                "id": "1fc7551f-fb5b-40d9-baf1-7997c896acbd",
                 "exec": [
+                  "// ============================================",
+                  "// Create Wallet - Invalid Amount (400 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 400 Bad Request', function () {",
                   "    pm.response.to.have.status(400);",
                   "});",
                   "",
-                  "pm.test('Response contains error message', function () {",
+                  "pm.test('Error response has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates invalid amount', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('amount') || msg.includes('invalid') || msg.includes('number') || msg.includes('parse') || msg.includes('format');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "0b68928f-d4fa-4bd9-9c22-dd9fbf368dca",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "c87dcc37-48cc-4fed-85ad-0bef74a6f9e7",
           "request": {
             "method": "POST",
             "header": [
@@ -792,22 +1252,79 @@
             {
               "listen": "test",
               "script": {
+                "id": "aec9ca92-62b1-4c54-95bf-198072c4c8a0",
                 "exec": [
+                  "// ============================================",
+                  "// Get Wallet Summary - Success (200)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test('Response contains summary data', function () {",
+                  "pm.test('Response contains summary data with correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('totalExpenses');",
-                  "    pm.expect(jsonData).to.have.property('totalIncome');",
+                  "    pm.expect(jsonData).to.have.property('total_expense');",
+                  "    pm.expect(jsonData).to.have.property('total_income');",
                   "    pm.expect(jsonData).to.have.property('balance');",
+                  "});",
+                  "",
+                  "pm.test('Summary values have correct money structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    ",
+                  "    // Check total_expense structure",
+                  "    if (jsonData.total_expense) {",
+                  "        pm.expect(jsonData.total_expense).to.have.property('amount');",
+                  "        pm.expect(jsonData.total_expense).to.have.property('currency');",
+                  "    }",
+                  "    ",
+                  "    // Check total_income structure",
+                  "    if (jsonData.total_income) {",
+                  "        pm.expect(jsonData.total_income).to.have.property('amount');",
+                  "        pm.expect(jsonData.total_income).to.have.property('currency');",
+                  "    }",
+                  "    ",
+                  "    // Check balance structure",
+                  "    if (jsonData.balance) {",
+                  "        pm.expect(jsonData.balance).to.have.property('amount');",
+                  "        pm.expect(jsonData.balance).to.have.property('currency');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Currency codes are valid format', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const currencyRegex = /^[A-Z]{3}$/;",
+                  "    ",
+                  "    if (jsonData.total_expense && jsonData.total_expense.currency) {",
+                  "        pm.expect(jsonData.total_expense.currency).to.match(currencyRegex);",
+                  "    }",
+                  "    if (jsonData.total_income && jsonData.total_income.currency) {",
+                  "        pm.expect(jsonData.total_income.currency).to.match(currencyRegex);",
+                  "    }",
+                  "    if (jsonData.balance && jsonData.balance.currency) {",
+                  "        pm.expect(jsonData.balance.currency).to.match(currencyRegex);",
+                  "    }",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "935df6ad-5f0d-4946-ad38-b0ccde6d6eaa",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "4f86da1b-e6fb-4192-a590-5b1ae9cc4cc4",
           "request": {
             "method": "GET",
             "header": [],
@@ -829,11 +1346,12 @@
           },
           "response": []
         }
-      ]
+      ],
+      "id": "3b62a6f3-79de-4fe1-bda9-c0bcc4da3b22",
+      "description": "Wallet management endpoints"
     },
     {
       "name": "Expenses",
-      "description": "Expense management endpoints",
       "item": [
         {
           "name": "Get Wallet Expenses - Success",
@@ -842,6 +1360,10 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Get Wallet Expenses - Success (200)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
@@ -851,7 +1373,7 @@
                   "    pm.expect(jsonData).to.be.an('array');",
                   "});",
                   "",
-                  "pm.test('Each expense has required fields', function () {",
+                  "pm.test('Each expense has required fields with correct types', function () {",
                   "    const jsonData = pm.response.json();",
                   "    if (jsonData.length > 0) {",
                   "        jsonData.forEach(expense => {",
@@ -860,8 +1382,61 @@
                   "            pm.expect(expense).to.have.property('date');",
                   "            pm.expect(expense).to.have.property('description');",
                   "            pm.expect(expense).to.have.property('category');",
+                  "            ",
+                  "            // Type validations",
+                  "            pm.expect(expense.id).to.be.a('number');",
+                  "            pm.expect(expense.description).to.be.a('string');",
+                  "            pm.expect(expense.date).to.be.a('string');",
                   "        });",
-                  "        // Save first expense ID for deletion test",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Expense IDs are positive integers', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(expense => {",
+                  "            pm.expect(expense.id).to.be.above(0);",
+                  "            pm.expect(Number.isInteger(expense.id)).to.be.true;",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Expense dates are valid ISO format', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const dateRegex = /^\\d{4}-\\d{2}-\\d{2}$/;",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(expense => {",
+                  "            pm.expect(expense.date).to.match(dateRegex);",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Expense amounts have correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(expense => {",
+                  "            pm.expect(expense.amount).to.have.property('amount');",
+                  "            pm.expect(expense.amount).to.have.property('currency');",
+                  "            pm.expect(expense.amount.currency).to.match(/^[A-Z]{3}$/);",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Expense categories have correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(expense => {",
+                  "            pm.expect(expense.category).to.have.property('name');",
+                  "            pm.expect(expense.category).to.have.property('profit');",
+                  "            pm.expect(expense.category.name).to.be.a('string');",
+                  "            pm.expect(expense.category.profit).to.be.a('boolean');",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Save first expense ID for deletion test with validation', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0 && jsonData[0].id) {",
                   "        pm.environment.set('test_expense_id', jsonData[0].id);",
                   "    }",
                   "});"
@@ -870,6 +1445,7 @@
               }
             }
           ],
+          "id": "41ed25dc-4de8-41fd-acd6-1c787eace97e",
           "request": {
             "method": "GET",
             "header": [],
@@ -898,16 +1474,34 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Create Expense - Success (201)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 201 Created', function () {",
                   "    pm.response.to.have.status(201);",
                   "});",
                   "",
-                  "pm.test('Response contains expense data', function () {",
+                  "pm.test('Response contains expense data with correct structure', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.have.property('id');",
                   "    pm.expect(jsonData).to.have.property('amount');",
                   "    pm.expect(jsonData).to.have.property('description');",
                   "    pm.expect(jsonData).to.have.property('category');",
+                  "    pm.expect(jsonData).to.have.property('date');",
+                  "});",
+                  "",
+                  "pm.test('Expense data types are correct', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.be.a('number');",
+                  "    pm.expect(jsonData.description).to.be.a('string');",
+                  "    pm.expect(jsonData.date).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Expense ID is a positive integer', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.be.above(0);",
+                  "    pm.expect(Number.isInteger(jsonData.id)).to.be.true;",
                   "});",
                   "",
                   "pm.test('Expense description matches request', function () {",
@@ -915,10 +1509,33 @@
                   "    pm.expect(jsonData.description).to.eql('Test Grocery Shopping');",
                   "});",
                   "",
-                  "pm.test('Save expense ID for future tests', function () {",
+                  "pm.test('Expense date is valid ISO format', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    if (jsonData.id) {",
+                  "    pm.expect(jsonData.date).to.match(/^\\d{4}-\\d{2}-\\d{2}$/);",
+                  "});",
+                  "",
+                  "pm.test('Expense amount has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.amount).to.have.property('amount');",
+                  "    pm.expect(jsonData.amount).to.have.property('currency');",
+                  "    pm.expect(jsonData.amount.currency).to.match(/^[A-Z]{3}$/);",
+                  "});",
+                  "",
+                  "pm.test('Expense category has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.category).to.have.property('name');",
+                  "    pm.expect(jsonData.category).to.have.property('profit');",
+                  "    pm.expect(jsonData.category.name).to.be.a('string');",
+                  "    pm.expect(jsonData.category.profit).to.be.a('boolean');",
+                  "});",
+                  "",
+                  "pm.test('Save expense ID for future tests with validation', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.id && jsonData.id > 0) {",
                   "        pm.environment.set('created_expense_id', jsonData.id);",
+                  "        pm.expect(pm.environment.get('created_expense_id')).to.exist;",
+                  "    } else {",
+                  "        pm.expect.fail('Expense ID is invalid or missing');",
                   "    }",
                   "});"
                 ],
@@ -926,6 +1543,7 @@
               }
             }
           ],
+          "id": "98081f40-cc48-457c-8ff9-c84307301179",
           "request": {
             "method": "POST",
             "header": [
@@ -962,20 +1580,60 @@
             {
               "listen": "test",
               "script": {
+                "id": "fa440757-5221-4ff5-8eeb-a413b585ff6d",
                 "exec": [
+                  "// ============================================",
+                  "// Create Expense - Invalid Date (400 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 400 Bad Request', function () {",
                   "    pm.response.to.have.status(400);",
                   "});",
                   "",
-                  "pm.test('Response contains error message', function () {",
+                  "pm.test('Error response has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates date validation issue', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('date') || msg.includes('invalid') || msg.includes('format') || msg.includes('parse');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "a83fdb42-a2a1-4bbe-a0be-2fb2acaa7008",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "59d9415c-b0de-499e-924b-f2dfc7c76b70",
           "request": {
             "method": "POST",
             "header": [
@@ -1013,14 +1671,34 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Delete Expense - Success (200/204)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 or 204', function () {",
                   "    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});",
+                  "",
+                  "pm.test('Response indicates successful deletion', function () {",
+                  "    if (pm.response.code === 200 && pm.response.text()) {",
+                  "        try {",
+                  "            const jsonData = pm.response.json();",
+                  "            if (jsonData.message) {",
+                  "                pm.expect(jsonData.message.toLowerCase()).to.satisfy(function(msg) {",
+                  "                    return msg.includes('deleted') || msg.includes('removed') || msg.includes('success');",
+                  "                });",
+                  "            }",
+                  "        } catch (e) {",
+                  "            // Response might not be JSON, which is acceptable for delete",
+                  "        }",
+                  "    }",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
           ],
+          "id": "49bc9e08-8a35-49ba-8333-5cc1c79d2453",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -1049,20 +1727,61 @@
             {
               "listen": "test",
               "script": {
+                "id": "61fffb30-9aa5-4c8d-9ac3-ff93a5377244",
                 "exec": [
+                  "// ============================================",
+                  "// Delete Expense - Non-existent (404 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 404 Not Found', function () {",
                   "    pm.response.to.have.status(404);",
                   "});",
                   "",
-                  "pm.test('Response contains error message', function () {",
+                  "pm.test('Error response has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates resource not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('not found') || msg.includes('does not exist') || msg.includes('no expense') || msg.includes('unknown');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
+                  "    pm.expect(jsonData).to.not.have.property('query');",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "cda088c6-a48c-40a1-a13a-356ceeb85a87",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "fdf7ce6f-d85f-4d47-b40a-4631bfcfa3ca",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -1092,20 +1811,55 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Get Highest Expense - Success (200)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test('Response contains expense data', function () {",
+                  "pm.test('Response contains expense data with correct structure', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.have.property('amount');",
                   "    pm.expect(jsonData).to.have.property('description');",
+                  "});",
+                  "",
+                  "pm.test('Expense data types are correct', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.description).to.be.a('string');",
+                  "    if (jsonData.id) {",
+                  "        pm.expect(jsonData.id).to.be.a('number');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Expense amount has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.amount).to.have.property('amount');",
+                  "    pm.expect(jsonData.amount).to.have.property('currency');",
+                  "    pm.expect(jsonData.amount.currency).to.match(/^[A-Z]{3}$/);",
+                  "});",
+                  "",
+                  "pm.test('Expense date is valid ISO format if present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.date) {",
+                  "        pm.expect(jsonData.date).to.match(/^\\d{4}-\\d{2}-\\d{2}$/);",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Expense category has correct structure if present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.category) {",
+                  "        pm.expect(jsonData.category).to.have.property('name');",
+                  "        pm.expect(jsonData.category).to.have.property('profit');",
+                  "    }",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
           ],
+          "id": "15b30717-8233-488b-b8ea-56c467bf83d2",
           "request": {
             "method": "GET",
             "header": [],
@@ -1134,6 +1888,10 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Get Counted Categories - Success (200)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
@@ -1143,12 +1901,46 @@
                   "    pm.expect(jsonData).to.satisfy(function(data) {",
                   "        return typeof data === 'object';",
                   "    });",
+                  "});",
+                  "",
+                  "pm.test('Category counts are non-negative integers', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (Array.isArray(jsonData)) {",
+                  "        jsonData.forEach(item => {",
+                  "            if (item.count !== undefined) {",
+                  "                pm.expect(item.count).to.be.a('number');",
+                  "                pm.expect(item.count).to.be.at.least(0);",
+                  "                pm.expect(Number.isInteger(item.count)).to.be.true;",
+                  "            }",
+                  "        });",
+                  "    } else {",
+                  "        // If it's an object with category names as keys",
+                  "        Object.values(jsonData).forEach(count => {",
+                  "            if (typeof count === 'number') {",
+                  "                pm.expect(count).to.be.at.least(0);",
+                  "                pm.expect(Number.isInteger(count)).to.be.true;",
+                  "            }",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Category names are non-empty strings if present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (Array.isArray(jsonData)) {",
+                  "        jsonData.forEach(item => {",
+                  "            if (item.category) {",
+                  "                pm.expect(item.category).to.be.a('string');",
+                  "                pm.expect(item.category.length).to.be.greaterThan(0);",
+                  "            }",
+                  "        });",
+                  "    }",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
           ],
+          "id": "b7000753-a48c-42ff-bbd8-554d0e44784c",
           "request": {
             "method": "GET",
             "header": [],
@@ -1186,20 +1978,60 @@
             {
               "listen": "test",
               "script": {
+                "id": "e9191bdf-7b4c-4fe9-a4fe-8bef603a9d48",
                 "exec": [
+                  "// ============================================",
+                  "// Get Counted Categories - Invalid Date Range (400 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 400 Bad Request', function () {",
                   "    pm.response.to.have.status(400);",
                   "});",
                   "",
-                  "pm.test('Response contains error message', function () {",
+                  "pm.test('Error response has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates date validation issue', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('date') || msg.includes('invalid') || msg.includes('format') || msg.includes('parse') || msg.includes('range');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "08d2dc3f-6eaa-4907-bfc4-cc7bd6e16e5c",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "8107b424-ff82-4477-8e10-cec00d367ba5",
           "request": {
             "method": "GET",
             "header": [],
@@ -1219,11 +2051,13 @@
               "query": [
                 {
                   "key": "start",
-                  "value": "invalid"
+                  "value": "invalid",
+                  "uuid": "f5beb397-f8a1-4009-a256-3ef0b60a64c2"
                 },
                 {
                   "key": "end",
-                  "value": "invalid"
+                  "value": "invalid",
+                  "uuid": "d8f38bdf-3e47-4ff0-a71c-0d9f3035c628"
                 }
               ]
             },
@@ -1231,11 +2065,12 @@
           },
           "response": []
         }
-      ]
+      ],
+      "id": "d6cd85fc-f8f9-45ec-ad68-a1b6fe172ad6",
+      "description": "Expense management endpoints"
     },
     {
       "name": "Budgets",
-      "description": "Budget management endpoints",
       "item": [
         {
           "name": "Get User Budgets - Success",
@@ -1244,6 +2079,10 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Get User Budgets - Success (200)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
@@ -1253,7 +2092,7 @@
                   "    pm.expect(jsonData).to.be.an('array');",
                   "});",
                   "",
-                  "pm.test('Each budget has required fields', function () {",
+                  "pm.test('Each budget has required fields with correct types', function () {",
                   "    const jsonData = pm.response.json();",
                   "    if (jsonData.length > 0) {",
                   "        jsonData.forEach(budget => {",
@@ -1261,6 +2100,55 @@
                   "            pm.expect(budget).to.have.property('category');",
                   "            pm.expect(budget).to.have.property('total');",
                   "            pm.expect(budget).to.have.property('date_range');",
+                  "            ",
+                  "            // Type validations",
+                  "            pm.expect(budget.id).to.be.a('number');",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Budget IDs are positive integers', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(budget => {",
+                  "            pm.expect(budget.id).to.be.above(0);",
+                  "            pm.expect(Number.isInteger(budget.id)).to.be.true;",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Budget categories have correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(budget => {",
+                  "            pm.expect(budget.category).to.have.property('name');",
+                  "            pm.expect(budget.category).to.have.property('profit');",
+                  "            pm.expect(budget.category.name).to.be.a('string');",
+                  "            pm.expect(budget.category.profit).to.be.a('boolean');",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Budget totals have correct money structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(budget => {",
+                  "            pm.expect(budget.total).to.have.property('amount');",
+                  "            pm.expect(budget.total).to.have.property('currency');",
+                  "            pm.expect(budget.total.currency).to.match(/^[A-Z]{3}$/);",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Budget date ranges have correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const dateRegex = /^\\d{4}-\\d{2}-\\d{2}$/;",
+                  "    if (jsonData.length > 0) {",
+                  "        jsonData.forEach(budget => {",
+                  "            pm.expect(budget.date_range).to.have.property('start');",
+                  "            pm.expect(budget.date_range).to.have.property('end');",
+                  "            pm.expect(budget.date_range.start).to.match(dateRegex);",
+                  "            pm.expect(budget.date_range.end).to.match(dateRegex);",
                   "        });",
                   "    }",
                   "});"
@@ -1269,6 +2157,7 @@
               }
             }
           ],
+          "id": "72ec9e18-6c60-46ff-a32a-35a5abaa51f0",
           "request": {
             "method": "GET",
             "header": [],
@@ -1313,15 +2202,30 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ============================================",
+                  "// Create Budget - Success (201)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 201 Created', function () {",
                   "    pm.response.to.have.status(201);",
                   "});",
                   "",
-                  "pm.test('Response contains budget data', function () {",
+                  "pm.test('Response contains budget data with correct structure', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData).to.have.property('id');",
                   "    pm.expect(jsonData).to.have.property('category');",
                   "    pm.expect(jsonData).to.have.property('total');",
+                  "});",
+                  "",
+                  "pm.test('Budget data types are correct', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.be.a('number');",
+                  "});",
+                  "",
+                  "pm.test('Budget ID is a positive integer', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.be.above(0);",
+                  "    pm.expect(Number.isInteger(jsonData.id)).to.be.true;",
                   "});",
                   "",
                   "pm.test('Budget category matches request', function () {",
@@ -1329,10 +2233,39 @@
                   "    pm.expect(jsonData.category.name).to.eql('Food');",
                   "});",
                   "",
-                  "pm.test('Save budget ID for future tests', function () {",
+                  "pm.test('Budget category has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    if (jsonData.id) {",
+                  "    pm.expect(jsonData.category).to.have.property('name');",
+                  "    pm.expect(jsonData.category).to.have.property('profit');",
+                  "    pm.expect(jsonData.category.name).to.be.a('string');",
+                  "    pm.expect(jsonData.category.profit).to.be.a('boolean');",
+                  "});",
+                  "",
+                  "pm.test('Budget total has correct money structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.total).to.have.property('amount');",
+                  "    pm.expect(jsonData.total).to.have.property('currency');",
+                  "    pm.expect(jsonData.total.currency).to.match(/^[A-Z]{3}$/);",
+                  "});",
+                  "",
+                  "pm.test('Budget date range has correct structure if present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.date_range) {",
+                  "        const dateRegex = /^\\d{4}-\\d{2}-\\d{2}$/;",
+                  "        pm.expect(jsonData.date_range).to.have.property('start');",
+                  "        pm.expect(jsonData.date_range).to.have.property('end');",
+                  "        pm.expect(jsonData.date_range.start).to.match(dateRegex);",
+                  "        pm.expect(jsonData.date_range.end).to.match(dateRegex);",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Save budget ID for future tests with validation', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.id && jsonData.id > 0) {",
                   "        pm.environment.set('created_budget_id', jsonData.id);",
+                  "        pm.expect(pm.environment.get('created_budget_id')).to.exist;",
+                  "    } else {",
+                  "        pm.expect.fail('Budget ID is invalid or missing');",
                   "    }",
                   "});"
                 ],
@@ -1340,6 +2273,7 @@
               }
             }
           ],
+          "id": "2632766e-ca93-475c-a867-4e0fb9c63418",
           "request": {
             "method": "POST",
             "header": [
@@ -1374,20 +2308,60 @@
             {
               "listen": "test",
               "script": {
+                "id": "e73d3c46-9323-4b6f-bca7-ca50840f6f40",
                 "exec": [
+                  "// ============================================",
+                  "// Create Budget - Invalid Date Range (400 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 400 Bad Request', function () {",
                   "    pm.response.to.have.status(400);",
                   "});",
                   "",
-                  "pm.test('Response contains error message', function () {",
+                  "pm.test('Error response has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates date validation issue', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('date') || msg.includes('invalid') || msg.includes('format') || msg.includes('parse') || msg.includes('range');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "a1535232-2c87-4c04-9af4-ce0e7244b4de",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "3c8babe4-6087-4e06-aa00-ad417953da53",
           "request": {
             "method": "POST",
             "header": [
@@ -1398,7 +2372,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"category\": {\n    \"name\": \"Food\",\n    \"profit\": false\n  },\n  \"total\": {\n    \"amount\": \"500.00\",\n    \"currency\": \"PLN\"\n  },\n  \"dateRange\": {\n    \"start\": \"2023-12-31\",\n    \"end\": \"2023-12-01\"\n  }\n}"
+              "raw": "{\n  \"category\": {\n    \"name\": \"Food\",\n    \"profit\": false\n  },\n  \"total\": {\n    \"amount\": \"500.00\",\n    \"currency\": \"PLN\"\n  },\n  \"dateRange\": {\n    \"start\": \"invalid_date\",\n    \"end\": \"invalid_date\"\n  }\n}"
             },
             "url": {
               "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets",
@@ -1422,20 +2396,60 @@
             {
               "listen": "test",
               "script": {
+                "id": "76c57fb2-74e2-483b-8992-059cc48872d4",
                 "exec": [
+                  "// ============================================",
+                  "// Create Budget - Missing Fields (400 Error)",
+                  "// ============================================",
+                  "",
                   "pm.test('Status code is 400 Bad Request', function () {",
                   "    pm.response.to.have.status(400);",
                   "});",
                   "",
-                  "pm.test('Response contains error message', function () {",
+                  "pm.test('Error response has correct structure', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message is a non-empty string', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.be.a('string');",
+                  "    pm.expect(jsonData.message.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates missing fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('missing') || msg.includes('required') || msg.includes('invalid') || msg.includes('total') || msg.includes('date');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "2e834e58-4d7a-4046-8dc7-b6dcf6c66881",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
+          "id": "c9742ac7-0d1e-422f-99cc-ddd0a036b299",
           "request": {
             "method": "POST",
             "header": [
@@ -1464,7 +2478,74 @@
           },
           "response": []
         }
-      ]
+      ],
+      "id": "477faef3-dda0-45ce-a279-5b9815111229",
+      "description": "Budget management endpoints"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "// ============================================",
+          "// COLLECTION-LEVEL POST-RESPONSE SCRIPT",
+          "// Common validations for all requests",
+          "// ============================================",
+          "",
+          "// Content-Type validation for JSON responses",
+          "pm.test('Content-Type is application/json', function () {",
+          "    pm.response.to.have.header('Content-Type');",
+          "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+          "});",
+          "",
+          "// Response time validation using environment variable",
+          "pm.test('Response time is acceptable', function () {",
+          "    const maxResponseTime = pm.environment.get('max_response_time_ms') || 2000;",
+          "    pm.expect(pm.response.responseTime).to.be.below(parseInt(maxResponseTime));",
+          "});",
+          "",
+          "// Ensure no sensitive data leakage in any response",
+          "pm.test('Response does not contain sensitive data', function () {",
+          "    const responseText = pm.response.text().toLowerCase();",
+          "    pm.expect(responseText).to.not.include('password');",
+          "    pm.expect(responseText).to.not.include('secret');",
+          "    pm.expect(responseText).to.not.include('private_key');",
+          "});",
+          "",
+          "// Validate response is valid JSON (for non-204 responses)",
+          "if (pm.response.code !== 204) {",
+          "    pm.test('Response is valid JSON', function () {",
+          "        pm.response.to.be.json;",
+          "    });",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "id": "7760675e-6f32-47ba-b431-ee44e3214f68",
+      "key": "base_url",
+      "value": "{{base_url}}",
+      "type": "string"
+    },
+    {
+      "id": "490003a5-64d4-41aa-a094-c5d72f2a3c74",
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
     }
   ]
 }
