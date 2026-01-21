@@ -110,6 +110,15 @@ impl UserServiceTrait for MockUserService {
         Ok(())
     }
     
+    async fn delete_user(&self, login: &str) -> Result<(), AppError> {
+        // Mock behavior: simulate successful deletion for known users, NotFoundError for unknown users
+        if login == "testuser" || login == "user1" {
+            Ok(())
+        } else {
+            Err(AppError::NotFoundError(format!("User `{}` does not exist", login)))
+        }
+    }
+    
     async fn get_wallets(&self, login: &str) -> Result<Vec<WalletDto>, AppError> {
         if login == "testuser" {
             Ok(vec![
@@ -819,6 +828,81 @@ async fn test_create_budget_returns_json_response() {
     assert!(budget.id.is_some());
     assert_eq!(budget.category.name, "Entertainment");
     assert_eq!(budget.total.currency, "PLN");
+}
+
+#[actix_rt::test]
+async fn test_delete_user_success() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}", web::delete().to(|
+                path: web::Path<String>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let login = path.into_inner();
+                svc.delete_user(&login).await?;
+                
+                let response = serde_json::json!({
+                    "message": format!("User `{}` deleted successfully", login)
+                });
+                
+                Ok::<_, AppError>(HttpResponse::Ok().json(response))
+            }))
+    )
+    .await;
+    
+    // Act
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/testuser")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert
+    assert_eq!(resp.status(), StatusCode::OK);
+    
+    let body = test::read_body(resp).await;
+    let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    
+    assert!(response.get("message").is_some());
+    assert!(response["message"].as_str().unwrap().contains("testuser"));
+    assert!(response["message"].as_str().unwrap().contains("deleted successfully"));
+}
+
+#[actix_rt::test]
+async fn test_delete_user_not_found() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}", web::delete().to(|
+                path: web::Path<String>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let login = path.into_inner();
+                svc.delete_user(&login).await?;
+                
+                let response = serde_json::json!({
+                    "message": format!("User `{}` deleted successfully", login)
+                });
+                
+                Ok::<_, AppError>(HttpResponse::Ok().json(response))
+            }))
+    )
+    .await;
+    
+    // Act
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/nonexistentuser")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 404 Not Found
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 

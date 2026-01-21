@@ -34,6 +34,23 @@ pub async fn update_user(
     Ok(HttpResponse::NoContent().finish())
 }
 
+// Handler for DELETE /resources/users/{login}
+pub async fn delete_user(
+    pool: web::Data<PgPool>,
+    path: web::Path<String>,
+) -> Result<impl Responder, AppError> {
+    let login = path.into_inner();
+    
+    let user_service = UserService::new(pool.get_ref().clone());
+    user_service.delete_user(&login).await?;
+    
+    let response = serde_json::json!({
+        "message": format!("User `{}` deleted successfully", login)
+    });
+    
+    Ok(HttpResponse::Ok().json(response))
+}
+
 // Handler for GET /resources/users/{login}/wallets
 pub async fn get_wallets(
     pool: web::Data<PgPool>,
