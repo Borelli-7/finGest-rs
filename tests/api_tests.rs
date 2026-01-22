@@ -138,7 +138,12 @@ impl UserServiceTrait for MockUserService {
         }
     }
     
-    async fn add_wallet(&self, _login: &str, wallet: WalletDto) -> Result<WalletDto, AppError> {
+    async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, AppError> {
+        // Simulate user validation
+        if login != "testuser" {
+            return Err(AppError::NotFoundError(format!("User with login '{}' not found", login)));
+        }
+        
         Ok(WalletDto {
             id: Some(3),
             name: wallet.name,
@@ -146,7 +151,12 @@ impl UserServiceTrait for MockUserService {
         })
     }
     
-    async fn get_summary(&self, _login: &str, _wallet_id: i32, _date_range: DateRange) -> Result<Summary, AppError> {
+    async fn get_summary(&self, login: &str, _wallet_id: i32, _date_range: DateRange) -> Result<Summary, AppError> {
+        // Simulate user validation
+        if login != "testuser" {
+            return Err(AppError::NotFoundError(format!("User with login '{}' not found", login)));
+        }
+        
         Ok(Summary::new(
             "Main Wallet".to_string(),
             Money::new(BigDecimal::from(1000), None),
@@ -415,6 +425,76 @@ async fn test_get_wallets_handler() {
 }
 
 #[actix_rt::test]
+async fn test_get_wallets_nonexistent_user() {
+    use money_manager_api::api::handlers::user_handler;
+    use sqlx::PgPool;
+    
+    // Create a connection to the test database
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .route("/resources/users/{login}/wallets", web::get().to(user_handler::get_wallets))
+        )
+        .await;
+        
+        let req = test::TestRequest::get()
+            .uri("/resources/users/nonexistent_user_xyz123/wallets")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 404 Not Found
+        assert_eq!(resp.status(), 404);
+        
+        // Check error response format
+        let body = test::read_body(resp).await;
+        let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(error.get("message").is_some());
+        let message = error["message"].as_str().unwrap();
+        assert!(message.contains("not found") || message.contains("User"));
+    }
+}
+
+#[actix_rt::test]
+async fn test_get_wallet_summary_nonexistent_user() {
+    use money_manager_api::api::handlers::user_handler;
+    use sqlx::PgPool;
+    
+    // Create a connection to the test database
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .route("/resources/users/{login}/wallets/{id}/summary", web::get().to(user_handler::get_summary))
+        )
+        .await;
+        
+        let req = test::TestRequest::get()
+            .uri("/resources/users/nonexistent_user_xyz123/wallets/1/summary?start=2023-01-01&end=2023-12-31")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 404 Not Found
+        assert_eq!(resp.status(), 404);
+        
+        // Check error response format
+        let body = test::read_body(resp).await;
+        let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(error.get("message").is_some());
+        let message = error["message"].as_str().unwrap();
+        assert!(message.contains("not found") || message.contains("User"));
+    }
+}
+
+#[actix_rt::test]
 async fn test_create_wallet_handler() {
     let mock_service = MockUserService;
     
@@ -448,6 +528,49 @@ async fn test_create_wallet_handler() {
     assert_eq!(created_wallet.id, Some(3));
     assert_eq!(created_wallet.name, "New Wallet");
     assert_eq!(created_wallet.amount.amount, BigDecimal::from(100));
+}
+
+#[actix_rt::test]
+async fn test_create_wallet_nonexistent_user() {
+    use money_manager_api::api::handlers::user_handler;
+    use sqlx::PgPool;
+    
+    // Create a connection to the test database
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .route("/resources/users/{login}/wallets", web::post().to(user_handler::create_wallet))
+        )
+        .await;
+        
+        // Test with non-existent user
+        let wallet = WalletDto {
+            id: None,
+            name: "Test Wallet".to_string(),
+            amount: Money::new(BigDecimal::from(100), None),
+        };
+        
+        let req = test::TestRequest::post()
+            .uri("/resources/users/nonexistent_user_login_12345/wallets")
+            .set_json(&wallet)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 404 Not Found
+        assert_eq!(resp.status(), 404);
+        
+        // Check error response format
+        let body = test::read_body(resp).await;
+        let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(error.get("message").is_some());
+        let message = error["message"].as_str().unwrap();
+        assert!(message.contains("not found") || message.contains("User"));
+    }
 }
 
 #[actix_rt::test]

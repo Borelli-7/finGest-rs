@@ -65,6 +65,24 @@ impl UserService {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+
+    /// Helper method to check if a user exists
+    async fn check_user_exists(&self, login: &str) -> Result<(), AppError> {
+        let user_exists = sqlx::query(
+            "SELECT 1 FROM account WHERE login = $1"
+        )
+        .bind(login)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        .is_some();
+
+        if !user_exists {
+            return Err(AppError::NotFoundError(format!("User with login '{}' not found", login)));
+        }
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -165,6 +183,9 @@ impl UserServiceTrait for UserService {
     }
 
     async fn get_wallets(&self, login: &str) -> Result<Vec<WalletDto>, AppError> {
+        // First check if the user exists
+        self.check_user_exists(login).await?;
+
         // Implementation would use a join to fetch wallets for a specific user
         // For demonstration:
         let wallets = sqlx::query(
@@ -195,6 +216,9 @@ impl UserServiceTrait for UserService {
     // For brevity, I'm showing just a few of the key methods
     
     async fn add_wallet(&self, login: &str, wallet_dto: WalletDto) -> Result<WalletDto, AppError> {
+        // First check if the user exists
+        self.check_user_exists(login).await?;
+
         // This would be implemented as a transaction to ensure data consistency
         let mut tx = self.pool.begin().await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -233,6 +257,9 @@ impl UserServiceTrait for UserService {
     }
 
     async fn get_summary(&self, login: &str, wallet_id: i32, _date_range: DateRange) -> Result<Summary, AppError> {
+        // First check if the user exists
+        self.check_user_exists(login).await?;
+
         // In a real implementation, this would calculate expenses and income within the date range
         // For demonstration, returning a simplified placeholder
         let wallet = sqlx::query(
@@ -268,7 +295,10 @@ impl UserServiceTrait for UserService {
     // Additional methods would be implemented similarly
     
     async fn get_expenses(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Vec<Expense>, AppError> {
-        // First check if the wallet belongs to the user
+        // First check if the user exists
+        self.check_user_exists(login).await?;
+
+        // Then check if the wallet belongs to the user
         let belongs_to_user = sqlx::query(
             "SELECT 1 FROM account_wallet 
             WHERE account_login = $1 AND wallet_id = $2"
@@ -325,7 +355,10 @@ impl UserServiceTrait for UserService {
     }
 
     async fn get_highest_expense(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Option<Expense>, AppError> {
-        // First check if the wallet belongs to the user
+        // First check if the user exists
+        self.check_user_exists(login).await?;
+
+        // Then check if the wallet belongs to the user
         let belongs_to_user = sqlx::query(
             "SELECT 1 FROM account_wallet 
             WHERE account_login = $1 AND wallet_id = $2"
