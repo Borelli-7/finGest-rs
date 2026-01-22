@@ -42,7 +42,7 @@ FinGest is a RESTful API server for managing personal finances, including wallet
 
 ## Tech Stack
 
-- **Language**: Rust 1.85+ (Edition 2024)
+- **Language**: Rust 1.85+ or 1.92.0+ (Edition 2024)
 - **Web Framework**: Actix-web 4.9
 - **Database**: PostgreSQL 15+ with SQLx 0.8
 - **Async Runtime**: Tokio 1.48
@@ -117,7 +117,7 @@ finGest-rs/
 
 ### Prerequisites
 
-- **Rust**: 1.85.0 or later ([Install Rust](https://rustup.rs/))
+- **Rust**: 1.85.0 or later (1.92.0+ also supported) ([Install Rust](https://rustup.rs/))
 - **PostgreSQL**: 15 or later
 - **Docker** (optional): For containerized deployment
 - **Docker Compose** (optional): For orchestrating services
