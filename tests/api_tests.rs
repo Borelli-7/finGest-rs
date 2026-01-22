@@ -138,7 +138,12 @@ impl UserServiceTrait for MockUserService {
         }
     }
     
-    async fn add_wallet(&self, _login: &str, wallet: WalletDto) -> Result<WalletDto, AppError> {
+    async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, AppError> {
+        // Simulate user validation
+        if login != "testuser" {
+            return Err(AppError::NotFoundError(format!("User with login '{}' not found", login)));
+        }
+        
         Ok(WalletDto {
             id: Some(3),
             name: wallet.name,
@@ -448,6 +453,49 @@ async fn test_create_wallet_handler() {
     assert_eq!(created_wallet.id, Some(3));
     assert_eq!(created_wallet.name, "New Wallet");
     assert_eq!(created_wallet.amount.amount, BigDecimal::from(100));
+}
+
+#[actix_rt::test]
+async fn test_create_wallet_nonexistent_user() {
+    use money_manager_api::api::handlers::user_handler;
+    use sqlx::PgPool;
+    
+    // Create a connection to the test database
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .route("/resources/users/{login}/wallets", web::post().to(user_handler::create_wallet))
+        )
+        .await;
+        
+        // Test with non-existent user
+        let wallet = WalletDto {
+            id: None,
+            name: "Test Wallet".to_string(),
+            amount: Money::new(BigDecimal::from(100), None),
+        };
+        
+        let req = test::TestRequest::post()
+            .uri("/resources/users/nonexistent_user_login_12345/wallets")
+            .set_json(&wallet)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 404 Not Found
+        assert_eq!(resp.status(), 404);
+        
+        // Check error response format
+        let body = test::read_body(resp).await;
+        let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(error.get("message").is_some());
+        let message = error["message"].as_str().unwrap();
+        assert!(message.contains("not found") || message.contains("User"));
+    }
 }
 
 #[actix_rt::test]

@@ -195,6 +195,20 @@ impl UserServiceTrait for UserService {
     // For brevity, I'm showing just a few of the key methods
     
     async fn add_wallet(&self, login: &str, wallet_dto: WalletDto) -> Result<WalletDto, AppError> {
+        // First check if the user exists
+        let user_exists = sqlx::query(
+            "SELECT 1 FROM account WHERE login = $1"
+        )
+        .bind(login)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        .is_some();
+
+        if !user_exists {
+            return Err(AppError::NotFoundError(format!("User with login '{}' not found", login)));
+        }
+
         // This would be implemented as a transaction to ensure data consistency
         let mut tx = self.pool.begin().await
             .map_err(|e| AppError::DatabaseError(e.to_string()))?;
