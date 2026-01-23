@@ -22,6 +22,9 @@ pub enum AppError {
     #[error("Bad request: {0}")]
     BadRequestError(String),
     
+    #[error("Conflict: {0}")]
+    ConflictError(String),
+    
     #[error("Internal server error: {0}")]
     InternalServerError(String),
 }
@@ -62,6 +65,12 @@ impl ResponseError for AppError {
             AppError::BadRequestError(message) => {
                 HttpResponse::BadRequest().json(ErrorResponse {
                     status: "400".to_string(),
+                    message: message.to_string(),
+                })
+            }
+            AppError::ConflictError(message) => {
+                HttpResponse::Conflict().json(ErrorResponse {
+                    status: "409".to_string(),
                     message: message.to_string(),
                 })
             }
