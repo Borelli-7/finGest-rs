@@ -30,6 +30,13 @@ pub struct CreateCategoryDto {
     pub profit: bool,
 }
 
+// DTO for updating an existing category
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct UpdateCategoryDto {
+    #[validate(length(min = 1, max = 255, message = "New category name must be between 1 and 255 characters"))]
+    pub new_name: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,6 +105,30 @@ mod tests {
         let dto = CreateCategoryDto {
             name: "a".repeat(256),
             profit: false,
+        };
+        assert!(dto.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_category_dto_validation_success() {
+        let dto = UpdateCategoryDto {
+            new_name: "Updated Food".to_string(),
+        };
+        assert!(dto.validate().is_ok());
+    }
+
+    #[test]
+    fn test_update_category_dto_validation_empty_name() {
+        let dto = UpdateCategoryDto {
+            new_name: "".to_string(),
+        };
+        assert!(dto.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_category_dto_validation_too_long_name() {
+        let dto = UpdateCategoryDto {
+            new_name: "a".repeat(256),
         };
         assert!(dto.validate().is_err());
     }
