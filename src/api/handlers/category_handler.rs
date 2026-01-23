@@ -4,7 +4,7 @@ use validator::Validate;
 
 use crate::{
     errors::AppError,
-    models::CreateCategoryDto,
+    models::{CreateCategoryDto, UpdateCategoryDto},
     services::CategoryService,
     services::category_service::CategoryServiceTrait,
 };
@@ -28,4 +28,21 @@ pub async fn create_category(
     let category = category_service.create_category(body.into_inner()).await?;
     
     Ok(HttpResponse::Created().json(category))
+}
+
+pub async fn update_category(
+    pool: web::Data<PgPool>,
+    path: web::Path<(String, bool)>,
+    body: web::Json<UpdateCategoryDto>,
+) -> Result<impl Responder, AppError> {
+    let (name, profit) = path.into_inner();
+    
+    // Validate input
+    body.validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+
+    let category_service = CategoryService::new(pool.get_ref().clone());
+    let updated_category = category_service.update_category(name, profit, body.into_inner()).await?;
+    
+    Ok(HttpResponse::Ok().json(updated_category))
 }

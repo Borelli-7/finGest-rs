@@ -1256,6 +1256,384 @@
             "description": "Attempt to create category without authentication - should return 401 Unauthorized"
           },
           "response": []
+        },
+        {
+          "name": "Update Category - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Category - Success (200)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has correct category structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "    pm.expect(jsonData).to.have.property('profit');",
+                  "});",
+                  "",
+                  "pm.test('Updated category has new name', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const requestData = JSON.parse(pm.request.body.raw);",
+                  "    pm.expect(jsonData.name).to.eql(requestData.new_name);",
+                  "});",
+                  "",
+                  "pm.test('Category profit type unchanged', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const urlParts = pm.request.url.path;",
+                  "    const profitParam = urlParts[urlParts.length - 1];",
+                  "    pm.expect(jsonData.profit).to.eql(profitParam === 'true');",
+                  "});",
+                  "",
+                  "// Store updated category for verification",
+                  "const jsonData = pm.response.json();",
+                  "pm.environment.set('test_updated_category_name', jsonData.name);",
+                  "pm.environment.set('test_updated_category_profit', jsonData.profit);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate unique updated category name",
+                  "const timestamp = Date.now();",
+                  "pm.environment.set('test_updated_category_name', `UpdatedCategory_${timestamp}`);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-category-success-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_name\": \"{{test_updated_category_name}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/categories/{{test_created_category_name}}/false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories",
+                "{{test_created_category_name}}",
+                "false"
+              ]
+            },
+            "description": "Update an existing category name - should return 200 OK"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category - Not Found (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Category - Not Found (404)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 404', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('404');",
+                  "});",
+                  "",
+                  "pm.test('Error message mentions not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.include('not found');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Use non-existent category name to trigger not found error"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-category-notfound-error-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_name\": \"Updated Name\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/categories/NonExistentCategory_99999/false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories",
+                "NonExistentCategory_99999",
+                "false"
+              ]
+            },
+            "description": "Attempt to update non-existent category - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category - Conflict (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Category - Conflict (409)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 409 Conflict', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 409', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('409');",
+                  "});",
+                  "",
+                  "pm.test('Error message mentions conflict or already exists', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    const hasConflict = message.includes('already exists') || ",
+                  "                       message.includes('conflict');",
+                  "    pm.expect(hasConflict).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Try to update to an existing category name to trigger conflict"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-category-conflict-error-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_name\": \"Food\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/categories/Transport/false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories",
+                "Transport",
+                "false"
+              ]
+            },
+            "description": "Attempt to update category to an existing name - should return 409 Conflict"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category - Invalid Name (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Category - Invalid Name (400)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 400', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('400');",
+                  "});",
+                  "",
+                  "pm.test('Error message mentions validation', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    const hasValidation = message.includes('validation') || ",
+                  "                         message.includes('invalid') ||",
+                  "                         message.includes('name') ||",
+                  "                         message.includes('empty');",
+                  "    pm.expect(hasValidation).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Empty new_name should trigger validation error"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-category-invalid-error-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_name\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/categories/Food/false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories",
+                "Food",
+                "false"
+              ]
+            },
+            "description": "Attempt to update category with empty name - should return 400 Bad Request"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Category - Missing Auth (401)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 401', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('401');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-category-noauth-error-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_name\": \"Unauthorized Update\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/categories/Food/false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories",
+                "Food",
+                "false"
+              ]
+            },
+            "description": "Attempt to update category without authentication - should return 401 Unauthorized"
+          },
+          "response": []
         }
       ],
       "id": "7b326322-8a2e-45b4-9e00-e97dcb2491f6",

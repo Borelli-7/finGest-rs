@@ -5,7 +5,7 @@ use mockall::automock;
 
 use crate::{
     errors::AppError,
-    models::{Category, CreateCategoryDto},
+    models::{Category, CreateCategoryDto, UpdateCategoryDto},
 };
 
 #[cfg_attr(test, automock)]
@@ -13,6 +13,7 @@ use crate::{
 pub trait CategoryServiceTrait: Send + Sync {
     async fn get_categories(&self) -> Result<Vec<Category>, AppError>;
     async fn create_category(&self, dto: CreateCategoryDto) -> Result<Category, AppError>;
+    async fn update_category(&self, name: String, profit: bool, dto: UpdateCategoryDto) -> Result<Category, AppError>;
 }
 
 pub struct CategoryService {
@@ -76,6 +77,60 @@ impl CategoryServiceTrait for CategoryService {
 
         Ok(category)
     }
+
+    async fn update_category(&self, name: String, profit: bool, dto: UpdateCategoryDto) -> Result<Category, AppError> {
+        // First, check if the category exists
+        let existing = sqlx::query(
+            "SELECT name, profit FROM category WHERE name = $1 AND profit = $2"
+        )
+        .bind(&name)
+        .bind(profit)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        if existing.is_none() {
+            return Err(AppError::NotFoundError(
+                format!("Category '{}' with profit={} not found", name, profit)
+            ));
+        }
+
+        // Check if the new name already exists with the same profit type (conflict check)
+        let conflict = sqlx::query(
+            "SELECT name, profit FROM category WHERE LOWER(name) = LOWER($1) AND profit = $2 AND name != $3"
+        )
+        .bind(&dto.new_name)
+        .bind(profit)
+        .bind(&name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        if conflict.is_some() {
+            return Err(AppError::ConflictError(
+                format!("Category '{}' with profit={} already exists", dto.new_name, profit)
+            ));
+        }
+
+        // Update the category name
+        let updated_category = sqlx::query(
+            "UPDATE category SET name = $1 WHERE name = $2 AND profit = $3 RETURNING name, profit"
+        )
+        .bind(&dto.new_name)
+        .bind(&name)
+        .bind(profit)
+        .map(|row: sqlx::postgres::PgRow| {
+            Category {
+                name: row.get("name"),
+                profit: row.get("profit"),
+            }
+        })
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(updated_category)
+    }
 }
 
 #[cfg(test)]
@@ -91,6 +146,7 @@ mod tests {
         impl CategoryServiceTrait for CategoryService {
             async fn get_categories(&self) -> Result<Vec<Category>, AppError>;
             async fn create_category(&self, dto: CreateCategoryDto) -> Result<Category, AppError>;
+            async fn update_category(&self, name: String, profit: bool, dto: UpdateCategoryDto) -> Result<Category, AppError>;
         }
     }
 

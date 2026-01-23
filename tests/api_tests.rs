@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use bigdecimal::BigDecimal;
 use chrono::NaiveDate;
 use money_manager_api::{
-    models::{Category, CreateCategoryDto, UserDto, CreateUserDto, WalletDto, Money, ExpenseInputDto, Expense, DateRange, Budget, BudgetOutputDto, Summary},
+    models::{Category, CreateCategoryDto, UpdateCategoryDto, UserDto, CreateUserDto, WalletDto, Money, ExpenseInputDto, Expense, DateRange, Budget, BudgetOutputDto, Summary},
     services::{CategoryServiceTrait, auth_service::{AuthServiceTrait, LoginDto, LoginResponse, Claims}, user_service::UserServiceTrait},
     errors::AppError,
     api::handlers::auth_handler,
@@ -33,6 +33,24 @@ impl CategoryServiceTrait for MockCategoryService {
         }
         
         Ok(Category::new(dto.name, dto.profit))
+    }
+
+    async fn update_category(&self, name: String, profit: bool, dto: UpdateCategoryDto) -> Result<Category, AppError> {
+        // Simulate category not found
+        if name == "NonExistent" {
+            return Err(AppError::NotFoundError(
+                format!("Category '{}' with profit={} not found", name, profit)
+            ));
+        }
+        
+        // Simulate conflict with existing category
+        if dto.new_name.to_lowercase() == "transport" && !profit {
+            return Err(AppError::ConflictError(
+                format!("Category '{}' with profit={} already exists", dto.new_name, profit)
+            ));
+        }
+        
+        Ok(Category::new(dto.new_name, profit))
     }
 }
 
@@ -374,6 +392,144 @@ async fn test_create_category_handler_invalid_input() {
     
     let req = test::TestRequest::post()
         .uri("/resources/categories")
+        .set_json(&dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[actix_rt::test]
+async fn test_update_category_handler_success() {
+    // Arrange
+    let mock_service = MockCategoryService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/categories/{name}/{profit}", web::put().to(|svc: web::Data<MockCategoryService>, path: web::Path<(String, bool)>, body: web::Json<UpdateCategoryDto>| async move {
+                let (name, profit) = path.into_inner();
+                match svc.update_category(name, profit, body.into_inner()).await {
+                    Ok(category) => HttpResponse::Ok().json(category),
+                    Err(e) => e.error_response(),
+                }
+            }))
+    )
+    .await;
+    
+    // Act
+    let dto = UpdateCategoryDto {
+        new_name: "Groceries".to_string(),
+    };
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/categories/Food/false")
+        .set_json(&dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert
+    assert_eq!(resp.status(), StatusCode::OK);
+    
+    let body = test::read_body(resp).await;
+    let category: Category = serde_json::from_slice(&body).unwrap();
+    
+    assert_eq!(category.name, "Groceries");
+    assert_eq!(category.profit, false);
+}
+
+#[actix_rt::test]
+async fn test_update_category_handler_not_found() {
+    // Arrange
+    let mock_service = MockCategoryService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/categories/{name}/{profit}", web::put().to(|svc: web::Data<MockCategoryService>, path: web::Path<(String, bool)>, body: web::Json<UpdateCategoryDto>| async move {
+                let (name, profit) = path.into_inner();
+                match svc.update_category(name, profit, body.into_inner()).await {
+                    Ok(category) => HttpResponse::Ok().json(category),
+                    Err(e) => e.error_response(),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Try to update non-existent category
+    let dto = UpdateCategoryDto {
+        new_name: "Updated".to_string(),
+    };
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/categories/NonExistent/false")
+        .set_json(&dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[actix_rt::test]
+async fn test_update_category_handler_conflict() {
+    // Arrange
+    let mock_service = MockCategoryService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/categories/{name}/{profit}", web::put().to(|svc: web::Data<MockCategoryService>, path: web::Path<(String, bool)>, body: web::Json<UpdateCategoryDto>| async move {
+                let (name, profit) = path.into_inner();
+                match svc.update_category(name, profit, body.into_inner()).await {
+                    Ok(category) => HttpResponse::Ok().json(category),
+                    Err(e) => e.error_response(),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Try to update to an existing category name
+    let dto = UpdateCategoryDto {
+        new_name: "Transport".to_string(),
+    };
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/categories/Food/false")
+        .set_json(&dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+}
+
+#[actix_rt::test]
+async fn test_update_category_handler_invalid_input() {
+    // Arrange
+    let mock_service = MockCategoryService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/categories/{name}/{profit}", web::put().to(|_svc: web::Data<MockCategoryService>, _path: web::Path<(String, bool)>, body: web::Json<UpdateCategoryDto>| async move {
+                use validator::Validate;
+                if let Err(e) = body.validate() {
+                    return AppError::ValidationError(e.to_string()).error_response();
+                }
+                HttpResponse::Ok().finish()
+            }))
+    )
+    .await;
+    
+    // Act - Empty new name
+    let dto = UpdateCategoryDto {
+        new_name: "".to_string(),
+    };
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/categories/Food/false")
         .set_json(&dto)
         .to_request();
     let resp = test::call_service(&app, req).await;
