@@ -1,5 +1,5 @@
 use crate::errors::AppError;
-use crate::models::Category;
+use crate::models::{Category, CreateCategoryDto};
 use async_trait::async_trait;
 use mockall::mock;
 
@@ -9,5 +9,6 @@ mock! {
     #[async_trait]
     impl super::CategoryServiceTrait for CategoryService {
         async fn get_categories(&self) -> Result<Vec<Category>, AppError>;
+        async fn create_category(&self, dto: CreateCategoryDto) -> Result<Category, AppError>;
     }
 }

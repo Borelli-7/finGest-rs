@@ -965,6 +965,297 @@
             "description": "Retrieve all available categories"
           },
           "response": []
+        },
+        {
+          "name": "Create Category - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Create Category - Success (201)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has correct category structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "    pm.expect(jsonData).to.have.property('profit');",
+                  "});",
+                  "",
+                  "pm.test('Created category matches request data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const requestData = JSON.parse(pm.request.body.raw);",
+                  "    pm.expect(jsonData.name).to.eql(requestData.name);",
+                  "    pm.expect(jsonData.profit).to.eql(requestData.profit);",
+                  "});",
+                  "",
+                  "// Store created category name for potential cleanup",
+                  "const jsonData = pm.response.json();",
+                  "pm.environment.set('test_created_category_name', jsonData.name);",
+                  "pm.environment.set('test_created_category_profit', jsonData.profit);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate unique category name for testing",
+                  "const timestamp = Date.now();",
+                  "pm.environment.set('test_new_category_name', `TestCategory_${timestamp}`);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "create-category-success-001",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{test_new_category_name}}\",\n  \"profit\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories"
+              ]
+            },
+            "description": "Create a new category with valid data"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Category - Duplicate (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Create Category - Duplicate (409)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 409 Conflict', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 409', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('409');",
+                  "});",
+                  "",
+                  "pm.test('Error message mentions duplicate or conflict', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    const hasDuplicate = message.includes('duplicate') || ",
+                  "                        message.includes('already exists') || ",
+                  "                        message.includes('conflict');",
+                  "    pm.expect(hasDuplicate).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Use existing category name to trigger duplicate error",
+                  "// 'Food' is assumed to exist from sample data"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "create-category-duplicate-error-001",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Food\",\n  \"profit\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories"
+              ]
+            },
+            "description": "Attempt to create a category that already exists - should return 409 Conflict"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Category - Invalid Name (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Create Category - Invalid Name (400)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 400', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('400');",
+                  "});",
+                  "",
+                  "pm.test('Error message mentions validation', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    const hasValidation = message.includes('validation') || ",
+                  "                         message.includes('invalid') ||",
+                  "                         message.includes('name') ||",
+                  "                         message.includes('empty');",
+                  "    pm.expect(hasValidation).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Empty name should trigger validation error"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "create-category-invalid-error-001",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"profit\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories"
+              ]
+            },
+            "description": "Attempt to create category with empty name - should return 400 Bad Request"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Category - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Create Category - Missing Auth (401)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 401', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('401');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "create-category-noauth-error-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Unauthorized Category\",\n  \"profit\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories"
+              ]
+            },
+            "description": "Attempt to create category without authentication - should return 401 Unauthorized"
+          },
+          "response": []
         }
       ],
       "id": "7b326322-8a2e-45b4-9e00-e97dcb2491f6",

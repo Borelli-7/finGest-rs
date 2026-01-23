@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use bigdecimal::BigDecimal;
 use chrono::NaiveDate;
 use money_manager_api::{
-    models::{Category, UserDto, CreateUserDto, WalletDto, Money, ExpenseInputDto, Expense, DateRange, Budget, BudgetOutputDto, Summary},
+    models::{Category, CreateCategoryDto, UserDto, CreateUserDto, WalletDto, Money, ExpenseInputDto, Expense, DateRange, Budget, BudgetOutputDto, Summary},
     services::{CategoryServiceTrait, auth_service::{AuthServiceTrait, LoginDto, LoginResponse, Claims}, user_service::UserServiceTrait},
     errors::AppError,
     api::handlers::auth_handler,
@@ -22,6 +22,17 @@ impl CategoryServiceTrait for MockCategoryService {
             Category::new("Food".to_string(), false),
             Category::new("Salary".to_string(), true),
         ])
+    }
+
+    async fn create_category(&self, dto: CreateCategoryDto) -> Result<Category, AppError> {
+        // Check for duplicate simulation
+        if dto.name.to_lowercase() == "food" && !dto.profit {
+            return Err(AppError::ConflictError(
+                format!("Category '{}' with profit={} already exists", dto.name, dto.profit)
+            ));
+        }
+        
+        Ok(Category::new(dto.name, dto.profit))
     }
 }
 
@@ -263,6 +274,112 @@ async fn test_get_categories_handler() {
     assert_eq!(categories[0].profit, false);
     assert_eq!(categories[1].name, "Salary");
     assert_eq!(categories[1].profit, true);
+}
+
+#[actix_rt::test]
+async fn test_create_category_handler_success() {
+    // Arrange
+    let mock_service = MockCategoryService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/categories", web::post().to(|svc: web::Data<MockCategoryService>, body: web::Json<CreateCategoryDto>| async move {
+                match svc.create_category(body.into_inner()).await {
+                    Ok(category) => HttpResponse::Created().json(category),
+                    Err(e) => e.error_response(),
+                }
+            }))
+    )
+    .await;
+    
+    // Act
+    let dto = CreateCategoryDto {
+        name: "Transport".to_string(),
+        profit: false,
+    };
+    
+    let req = test::TestRequest::post()
+        .uri("/resources/categories")
+        .set_json(&dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    
+    let body = test::read_body(resp).await;
+    let category: Category = serde_json::from_slice(&body).unwrap();
+    
+    assert_eq!(category.name, "Transport");
+    assert_eq!(category.profit, false);
+}
+
+#[actix_rt::test]
+async fn test_create_category_handler_duplicate() {
+    // Arrange
+    let mock_service = MockCategoryService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/categories", web::post().to(|svc: web::Data<MockCategoryService>, body: web::Json<CreateCategoryDto>| async move {
+                match svc.create_category(body.into_inner()).await {
+                    Ok(category) => HttpResponse::Created().json(category),
+                    Err(e) => e.error_response(),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Try to create duplicate "Food" category
+    let dto = CreateCategoryDto {
+        name: "Food".to_string(),
+        profit: false,
+    };
+    
+    let req = test::TestRequest::post()
+        .uri("/resources/categories")
+        .set_json(&dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+}
+
+#[actix_rt::test]
+async fn test_create_category_handler_invalid_input() {
+    // Arrange
+    let mock_service = MockCategoryService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/categories", web::post().to(|_svc: web::Data<MockCategoryService>, body: web::Json<CreateCategoryDto>| async move {
+                use validator::Validate;
+                if let Err(e) = body.validate() {
+                    return AppError::ValidationError(e.to_string()).error_response();
+                }
+                HttpResponse::Created().finish()
+            }))
+    )
+    .await;
+    
+    // Act - Empty name
+    let dto = CreateCategoryDto {
+        name: "".to_string(),
+        profit: false,
+    };
+    
+    let req = test::TestRequest::post()
+        .uri("/resources/categories")
+        .set_json(&dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
 #[actix_rt::test]

@@ -22,6 +22,14 @@ pub struct CategoryPK {
     pub profit: bool,
 }
 
+// DTO for creating a new category
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct CreateCategoryDto {
+    #[validate(length(min = 1, max = 255, message = "Category name must be between 1 and 255 characters"))]
+    pub name: String,
+    pub profit: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -65,5 +73,32 @@ mod tests {
         let cat1 = Category::new("Salary".to_string(), true);
         let cat2 = Category::new("Salary".to_string(), false);
         assert_ne!(cat1, cat2);
+    }
+
+    #[test]
+    fn test_create_category_dto_validation_success() {
+        let dto = CreateCategoryDto {
+            name: "Groceries".to_string(),
+            profit: false,
+        };
+        assert!(dto.validate().is_ok());
+    }
+
+    #[test]
+    fn test_create_category_dto_validation_empty_name() {
+        let dto = CreateCategoryDto {
+            name: "".to_string(),
+            profit: false,
+        };
+        assert!(dto.validate().is_err());
+    }
+
+    #[test]
+    fn test_create_category_dto_validation_too_long_name() {
+        let dto = CreateCategoryDto {
+            name: "a".repeat(256),
+            profit: false,
+        };
+        assert!(dto.validate().is_err());
     }
 }
