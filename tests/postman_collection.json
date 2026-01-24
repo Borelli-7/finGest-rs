@@ -998,7 +998,7 @@
                   "// Store created category name for potential cleanup",
                   "const jsonData = pm.response.json();",
                   "pm.environment.set('test_created_category_name', jsonData.name);",
-                  "pm.environment.set('test_created_category_profit', jsonData.profit);"
+                  "pm.environment.set('test_created_category_is_income', jsonData.profit);"
                 ],
                 "type": "text/javascript"
               }
@@ -1295,7 +1295,7 @@
                   "// Store updated category for verification",
                   "const jsonData = pm.response.json();",
                   "pm.environment.set('test_updated_category_name', jsonData.name);",
-                  "pm.environment.set('test_updated_category_profit', jsonData.profit);"
+                  "pm.environment.set('test_updated_category_is_income', jsonData.profit);"
                 ],
                 "type": "text/javascript"
               }
