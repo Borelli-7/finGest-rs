@@ -52,6 +52,18 @@ impl CategoryServiceTrait for MockCategoryService {
         
         Ok(Category::new(dto.new_name, profit))
     }
+
+    async fn delete_category(&self, name: String, profit: bool) -> Result<(), AppError> {
+        // Simulate category not found
+        if name == "NonExistent" || name == "NotFound" {
+            return Err(AppError::NotFoundError(
+                format!("Category '{}' with profit={} not found", name, profit)
+            ));
+        }
+        
+        // Simulate successful deletion for other categories
+        Ok(())
+    }
 }
 
 // Define a mock AuthService for testing
@@ -536,6 +548,62 @@ async fn test_update_category_handler_invalid_input() {
     
     // Assert
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[actix_rt::test]
+async fn test_delete_category_handler_success() {
+    // Arrange
+    let mock_service = MockCategoryService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/categories/{name}/{profit}", web::delete().to(|svc: web::Data<MockCategoryService>, path: web::Path<(String, bool)>| async move {
+                let (name, profit) = path.into_inner();
+                match svc.delete_category(name, profit).await {
+                    Ok(_) => HttpResponse::NoContent().finish(),
+                    Err(e) => e.error_response(),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Delete existing category
+    let req = test::TestRequest::delete()
+        .uri("/resources/categories/Food/false")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+}
+
+#[actix_rt::test]
+async fn test_delete_category_handler_not_found() {
+    // Arrange
+    let mock_service = MockCategoryService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/categories/{name}/{profit}", web::delete().to(|svc: web::Data<MockCategoryService>, path: web::Path<(String, bool)>| async move {
+                let (name, profit) = path.into_inner();
+                match svc.delete_category(name, profit).await {
+                    Ok(_) => HttpResponse::NoContent().finish(),
+                    Err(e) => e.error_response(),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Attempt to delete non-existent category
+    let req = test::TestRequest::delete()
+        .uri("/resources/categories/NonExistent/false")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[actix_rt::test]

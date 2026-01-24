@@ -46,3 +46,15 @@ pub async fn update_category(
     
     Ok(HttpResponse::Ok().json(updated_category))
 }
+
+pub async fn delete_category(
+    pool: web::Data<PgPool>,
+    path: web::Path<(String, bool)>,
+) -> Result<impl Responder, AppError> {
+    let (name, profit) = path.into_inner();
+
+    let category_service = CategoryService::new(pool.get_ref().clone());
+    category_service.delete_category(name, profit).await?;
+    
+    Ok(HttpResponse::NoContent().finish())
+}

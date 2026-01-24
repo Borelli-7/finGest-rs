@@ -8,5 +8,6 @@ pub fn category_routes(cfg: &mut web::ServiceConfig) {
             .route("", web::get().to(category_handler::get_categories))
             .route("", web::post().to(category_handler::create_category))
             .route("/{name}/{profit}", web::put().to(category_handler::update_category))
+            .route("/{name}/{profit}", web::delete().to(category_handler::delete_category))
     );
 }
