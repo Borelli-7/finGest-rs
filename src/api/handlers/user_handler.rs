@@ -5,7 +5,7 @@ use validator::Validate;
 
 use crate::{
     errors::AppError,
-    models::{BudgetInputDto, DateRange, ExpenseInputDto, WalletDto},
+    models::{BudgetInputDto, DateRange, ExpenseInputDto, WalletDto, UpdateWalletDto},
     services::UserService,
     services::user_service::UserServiceTrait,
 };
@@ -88,6 +88,27 @@ pub async fn create_wallet(
     Ok(HttpResponse::Created()
         .append_header(("Location", location))
         .json(created_wallet))
+}
+
+// Handler for PUT /resources/users/{login}/wallets/{id}
+pub async fn update_wallet(
+    pool: web::Data<PgPool>,
+    path: web::Path<(String, i32)>,
+    wallet_update: web::Json<UpdateWalletDto>,
+) -> Result<impl Responder, AppError> {
+    let (login, wallet_id) = path.into_inner();
+    
+    // Validate the update data
+    wallet_update
+        .validate()
+        .map_err(|_| AppError::ValidationError(
+            "The wallet update data is not valid".to_string()
+        ))?;
+    
+    let user_service = UserService::new(pool.get_ref().clone());
+    let updated_wallet = user_service.update_wallet(&login, wallet_id, wallet_update.into_inner()).await?;
+    
+    Ok(HttpResponse::Ok().json(updated_wallet))
 }
 
 // Handler for GET /resources/users/{login}/wallets/{id}/summary

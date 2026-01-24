@@ -9,7 +9,7 @@ use crate::{
     errors::AppError,
     models::{
         Budget, BudgetOutputDto, DateRange, Expense, ExpenseInputDto,
-        Summary, User, UserDto, Wallet, WalletDto,
+        Summary, User, UserDto, Wallet, WalletDto, UpdateWalletDto,
     },
 };
 
@@ -22,6 +22,7 @@ pub trait UserServiceTrait: Send + Sync {
     async fn delete_user(&self, login: &str) -> Result<(), AppError>;
     async fn get_wallets(&self, login: &str) -> Result<Vec<WalletDto>, AppError>;
     async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, AppError>;
+    async fn update_wallet(&self, login: &str, wallet_id: i32, update_data: UpdateWalletDto) -> Result<WalletDto, AppError>;
     async fn get_summary(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Summary, AppError>;
     async fn get_expenses(
         &self,
@@ -253,6 +254,62 @@ impl UserServiceTrait for UserService {
             id: Some(wallet_id),
             name: wallet_dto.name,
             amount: wallet_dto.amount,
+        })
+    }
+
+    async fn update_wallet(&self, login: &str, wallet_id: i32, update_data: UpdateWalletDto) -> Result<WalletDto, AppError> {
+        // First check if the user exists
+        self.check_user_exists(login).await?;
+
+        // Check if the wallet exists and belongs to the user
+        let existing_wallet = sqlx::query(
+            "SELECT w.id, w.name, w.amount_amount, w.amount_currency
+            FROM wallet w
+            JOIN account_wallet aw ON w.id = aw.wallet_id
+            WHERE aw.account_login = $1 AND w.id = $2"
+        )
+        .bind(login)
+        .bind(wallet_id)
+        .map(|row: sqlx::postgres::PgRow| {
+            Wallet {
+                id: row.get("id"),
+                name: row.get("name"),
+                amount: Money {
+                    amount: row.get("amount_amount"),
+                    currency: row.get("amount_currency"),
+                },
+            }
+        })
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        .ok_or_else(|| AppError::AuthorizationError(
+            "Not authorized to update this wallet or wallet not found".to_string()
+        ))?;
+
+        // Prepare the updated values (use existing values if not provided)
+        let new_name = update_data.name.as_ref().unwrap_or(&existing_wallet.name);
+        let new_amount = update_data.amount.as_ref().unwrap_or(&existing_wallet.amount);
+
+        // Update the wallet
+        sqlx::query(
+            "UPDATE wallet 
+            SET name = $1, amount_amount = $2, amount_currency = $3
+            WHERE id = $4"
+        )
+        .bind(new_name)
+        .bind(&new_amount.amount)
+        .bind(&new_amount.currency)
+        .bind(wallet_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // Return the updated wallet data
+        Ok(WalletDto {
+            id: Some(wallet_id),
+            name: new_name.clone(),
+            amount: new_amount.clone(),
         })
     }
 
@@ -593,6 +650,7 @@ mod tests {
             async fn delete_user(&self, login: &str) -> Result<(), AppError>;
             async fn get_wallets(&self, login: &str) -> Result<Vec<WalletDto>, AppError>;
             async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, AppError>;
+            async fn update_wallet(&self, login: &str, wallet_id: i32, update_data: UpdateWalletDto) -> Result<WalletDto, AppError>;
             async fn get_summary(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Summary, AppError>;
             async fn get_expenses(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Vec<Expense>, AppError>;
             async fn get_highest_expense(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Option<Expense>, AppError>;

@@ -36,6 +36,16 @@ pub struct WalletDto {
     pub amount: Money,
 }
 
+// DTO for updating existing wallets
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct UpdateWalletDto {
+    #[validate(length(min = 1, message = "Wallet name cannot be empty"))]
+    pub name: Option<String>,
+    
+    #[validate(nested)]
+    pub amount: Option<Money>,
+}
+
 impl From<Wallet> for WalletDto {
     fn from(wallet: Wallet) -> Self {
         Self {
@@ -107,4 +117,39 @@ mod tests {
         assert_eq!(dto.name, "Savings");
         assert_eq!(dto.amount.currency, "PLN");
     }
-}
+    
+    #[test]
+    fn test_update_wallet_dto_validation_success() {
+        let update_dto = UpdateWalletDto {
+            name: Some("Updated Wallet".to_string()),
+            amount: Some(Money::new(BigDecimal::from(500), Some("EUR".to_string()))),
+        };
+        assert!(update_dto.validate().is_ok());
+    }
+    
+    #[test]
+    fn test_update_wallet_dto_partial_update_name() {
+        let update_dto = UpdateWalletDto {
+            name: Some("Updated Name".to_string()),
+            amount: None,
+        };
+        assert!(update_dto.validate().is_ok());
+    }
+    
+    #[test]
+    fn test_update_wallet_dto_partial_update_amount() {
+        let update_dto = UpdateWalletDto {
+            name: None,
+            amount: Some(Money::new(BigDecimal::from(750), None)),
+        };
+        assert!(update_dto.validate().is_ok());
+    }
+    
+    #[test]
+    fn test_update_wallet_dto_empty_name_validation_error() {
+        let update_dto = UpdateWalletDto {
+            name: Some("".to_string()),
+            amount: None,
+        };
+        assert!(update_dto.validate().is_err());
+    }}
