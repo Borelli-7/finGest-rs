@@ -1634,6 +1634,187 @@
             "description": "Attempt to update category without authentication - should return 401 Unauthorized"
           },
           "response": []
+        },
+        {
+          "name": "Delete Category - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Delete Category - Success (204)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 204 No Content', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Response body is empty', function () {",
+                  "    pm.expect(pm.response.text()).to.be.empty;",
+                  "});",
+                  "",
+                  "pm.test('Content-Length header indicates empty body', function () {",
+                  "    const contentLength = pm.response.headers.get('Content-Length');",
+                  "    if (contentLength !== null) {",
+                  "        pm.expect(contentLength).to.eql('0');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate unique category name for deletion",
+                  "const timestamp = Date.now();",
+                  "pm.environment.set('test_delete_category_name', `DeleteTest_${timestamp}`);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-category-success-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/categories/{{test_updated_category_name}}/false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories",
+                "{{test_updated_category_name}}",
+                "false"
+              ]
+            },
+            "description": "Delete an existing category - should return 204 No Content"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Category - Not Found (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Delete Category - Not Found (404)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 404', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('404');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates category not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include('not found');",
+                  "    pm.expect(jsonData.message).to.include('NonExistentCategory');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// No pre-request needed for non-existent category test"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-category-notfound-error-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/categories/NonExistentCategory/false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories",
+                "NonExistentCategory",
+                "false"
+              ]
+            },
+            "description": "Attempt to delete non-existent category - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Category - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Delete Category - Missing Auth (401)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 401', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('401');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-category-noauth-error-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/categories/Food/false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "categories",
+                "Food",
+                "false"
+              ]
+            },
+            "description": "Attempt to delete category without authentication - should return 401 Unauthorized"
+          },
+          "response": []
         }
       ],
       "id": "7b326322-8a2e-45b4-9e00-e97dcb2491f6",

@@ -14,6 +14,7 @@ pub trait CategoryServiceTrait: Send + Sync {
     async fn get_categories(&self) -> Result<Vec<Category>, AppError>;
     async fn create_category(&self, dto: CreateCategoryDto) -> Result<Category, AppError>;
     async fn update_category(&self, name: String, profit: bool, dto: UpdateCategoryDto) -> Result<Category, AppError>;
+    async fn delete_category(&self, name: String, profit: bool) -> Result<(), AppError>;
 }
 
 pub struct CategoryService {
@@ -131,6 +132,43 @@ impl CategoryServiceTrait for CategoryService {
 
         Ok(updated_category)
     }
+
+    async fn delete_category(&self, name: String, profit: bool) -> Result<(), AppError> {
+        // First, check if the category exists
+        let existing = sqlx::query(
+            "SELECT name, profit FROM category WHERE name = $1 AND profit = $2"
+        )
+        .bind(&name)
+        .bind(profit)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        if existing.is_none() {
+            return Err(AppError::NotFoundError(
+                format!("Category '{}' with profit={} not found", name, profit)
+            ));
+        }
+
+        // Delete the category
+        let result = sqlx::query(
+            "DELETE FROM category WHERE name = $1 AND profit = $2"
+        )
+        .bind(&name)
+        .bind(profit)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // Verify that the deletion occurred
+        if result.rows_affected() == 0 {
+            return Err(AppError::DatabaseError(
+                "Failed to delete category".to_string()
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -147,6 +185,7 @@ mod tests {
             async fn get_categories(&self) -> Result<Vec<Category>, AppError>;
             async fn create_category(&self, dto: CreateCategoryDto) -> Result<Category, AppError>;
             async fn update_category(&self, name: String, profit: bool, dto: UpdateCategoryDto) -> Result<Category, AppError>;
+            async fn delete_category(&self, name: String, profit: bool) -> Result<(), AppError>;
         }
     }
 
