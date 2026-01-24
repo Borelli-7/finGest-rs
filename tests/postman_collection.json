@@ -2457,6 +2457,431 @@
             "description": "Attempt to get wallet summary for non-existent user - should return 404 Not Found instead of 500 Internal Server Error"
           },
           "response": []
+        },
+        {
+          "name": "Update Wallet - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "update-wallet-success-001",
+                "exec": [
+                  "// ============================================",
+                  "// Update Wallet - Success (200 OK)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "    pm.expect(jsonData).to.have.property('amount');",
+                  "});",
+                  "",
+                  "pm.test('Wallet name was updated correctly', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.name).to.equal('Updated Test Wallet');",
+                  "});",
+                  "",
+                  "pm.test('Wallet amount structure is valid', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.amount).to.have.property('amount');",
+                  "    pm.expect(jsonData.amount).to.have.property('currency');",
+                  "});",
+                  "",
+                  "pm.test('Content-Type header is application/json', function () {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "update-wallet-prerequest-001",
+                "exec": [
+                  "// Ensure wallet ID exists",
+                  "const walletId = pm.environment.get('created_wallet_id');",
+                  "if (!walletId) {",
+                  "    throw new Error('Wallet ID not set. Please run Create Wallet test first.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-wallet-success-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Test Wallet\",\n  \"amount\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{created_wallet_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{created_wallet_id}}"
+              ]
+            },
+            "description": "Update an existing wallet's name - should return 200 OK"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Wallet - Amount Only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "update-wallet-amount-001",
+                "exec": [
+                  "// ============================================",
+                  "// Update Wallet Amount Only - Success (200 OK)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Wallet amount was updated correctly', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.amount.amount).to.equal('1500.50');",
+                  "    pm.expect(jsonData.amount.currency).to.equal('EUR');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "update-wallet-amount-prerequest-001",
+                "exec": [
+                  "// Ensure wallet ID exists",
+                  "const walletId = pm.environment.get('created_wallet_id');",
+                  "if (!walletId) {",
+                  "    throw new Error('Wallet ID not set. Please run Create Wallet test first.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-wallet-amount-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": null,\n  \"amount\": {\n    \"amount\": \"1500.50\",\n    \"currency\": \"EUR\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{created_wallet_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{created_wallet_id}}"
+              ]
+            },
+            "description": "Update only the wallet amount - should return 200 OK"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Wallet - Non-existent User (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "update-wallet-nouser-001",
+                "exec": [
+                  "// ============================================",
+                  "// Update Wallet - Non-existent User (404 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates user not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('user') && msg.includes('not found');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-wallet-nouser-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Trying to Update\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/nonexistent_user_xyz123/wallets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "nonexistent_user_xyz123",
+                "wallets",
+                "1"
+              ]
+            },
+            "description": "Attempt to update wallet for non-existent user - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Wallet - Not Authorized (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "update-wallet-noauth-001",
+                "exec": [
+                  "// ============================================",
+                  "// Update Wallet - Not Authorized (403 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates authorization issue', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('not authorized') || msg.includes('unauthorized');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-wallet-noauth-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Trying to Update\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/99999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "99999"
+              ]
+            },
+            "description": "Attempt to update a wallet that doesn't belong to the user or doesn't exist - should return 403 Forbidden"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Wallet - Empty Name (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "update-wallet-emptyname-001",
+                "exec": [
+                  "// ============================================",
+                  "// Update Wallet - Empty Name (400 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates validation error', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('validation') || msg.includes('invalid') || msg.includes('empty');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "update-wallet-emptyname-prerequest-001",
+                "exec": [
+                  "// Ensure wallet ID exists",
+                  "const walletId = pm.environment.get('created_wallet_id');",
+                  "if (!walletId) {",
+                  "    throw new Error('Wallet ID not set. Please run Create Wallet test first.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-wallet-emptyname-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{created_wallet_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{created_wallet_id}}"
+              ]
+            },
+            "description": "Attempt to update wallet with empty name - should return 400 Bad Request"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Wallet - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "update-wallet-noauth-token-001",
+                "exec": [
+                  "// ============================================",
+                  "// Update Wallet - Missing Auth (401 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates missing authentication', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('authorization') || msg.includes('unauthorized') || msg.includes('missing');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-wallet-noauth-token-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Unauthorized Update\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "1"
+              ]
+            },
+            "description": "Attempt to update wallet without authentication - should return 401 Unauthorized"
+          },
+          "response": []
         }
       ],
       "id": "3b62a6f3-79de-4fe1-bda9-c0bcc4da3b22",

@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use bigdecimal::BigDecimal;
 use chrono::NaiveDate;
 use money_manager_api::{
-    models::{Category, CreateCategoryDto, UpdateCategoryDto, UserDto, CreateUserDto, WalletDto, Money, ExpenseInputDto, Expense, DateRange, Budget, BudgetOutputDto, Summary},
+    models::{Category, CreateCategoryDto, UpdateCategoryDto, UserDto, CreateUserDto, WalletDto, UpdateWalletDto, Money, ExpenseInputDto, Expense, DateRange, Budget, BudgetOutputDto, Summary},
     services::{CategoryServiceTrait, auth_service::{AuthServiceTrait, LoginDto, LoginResponse, Claims}, user_service::UserServiceTrait},
     errors::AppError,
     api::handlers::auth_handler,
@@ -189,6 +189,37 @@ impl UserServiceTrait for MockUserService {
             id: Some(3),
             name: wallet.name,
             amount: wallet.amount,
+        })
+    }
+    
+    async fn update_wallet(&self, login: &str, wallet_id: i32, update_data: UpdateWalletDto) -> Result<WalletDto, AppError> {
+        // Simulate user validation
+        if login != "testuser" {
+            return Err(AppError::NotFoundError(format!("User with login '{}' not found", login)));
+        }
+        
+        // Simulate wallet not found or not owned by user
+        if wallet_id == 999 {
+            return Err(AppError::AuthorizationError(
+                "Not authorized to update this wallet or wallet not found".to_string()
+            ));
+        }
+        
+        // Get existing wallet (mock data)
+        let existing = WalletDto {
+            id: Some(wallet_id),
+            name: "Main Wallet".to_string(),
+            amount: Money::new(BigDecimal::from(1000), None),
+        };
+        
+        // Apply updates
+        let new_name = update_data.name.unwrap_or(existing.name);
+        let new_amount = update_data.amount.unwrap_or(existing.amount);
+        
+        Ok(WalletDto {
+            id: Some(wallet_id),
+            name: new_name,
+            amount: new_amount,
         })
     }
     
@@ -1017,6 +1048,195 @@ async fn test_create_wallet_invalid_amount_format() {
         assert_eq!(error.get("status").and_then(|v| v.as_str()), Some("400"));
         assert_eq!(error.get("message").and_then(|v| v.as_str()), Some("The amount is invalid"));
     }
+}
+
+// ========================================
+// Update Wallet Tests
+// ========================================
+
+#[actix_rt::test]
+async fn test_update_wallet_success() {
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .route("/resources/users/{login}/wallets/{id}", web::put().to(
+                |user_service: web::Data<MockUserService>, path: web::Path<(String, i32)>, update: web::Json<UpdateWalletDto>| async move {
+                    let (login, wallet_id) = path.into_inner();
+                    let updated_wallet = user_service
+                        .update_wallet(&login, wallet_id, update.into_inner())
+                        .await
+                        .unwrap();
+                    HttpResponse::Ok().json(updated_wallet)
+                }
+            ))
+            .app_data(web::Data::new(mock_service))
+    )
+    .await;
+    
+    // Test updating wallet name
+    let update = serde_json::json!({
+        "name": "Updated Wallet Name",
+        "amount": null
+    });
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/users/testuser/wallets/1")
+        .insert_header(("content-type", "application/json"))
+        .set_json(&update)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = test::read_body(resp).await;
+    let wallet: WalletDto = serde_json::from_slice(&body).unwrap();
+    assert_eq!(wallet.name, "Updated Wallet Name");
+}
+
+#[actix_rt::test]
+async fn test_update_wallet_amount_only() {
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .route("/resources/users/{login}/wallets/{id}", web::put().to(
+                |user_service: web::Data<MockUserService>, path: web::Path<(String, i32)>, update: web::Json<UpdateWalletDto>| async move {
+                    let (login, wallet_id) = path.into_inner();
+                    let updated_wallet = user_service
+                        .update_wallet(&login, wallet_id, update.into_inner())
+                        .await
+                        .unwrap();
+                    HttpResponse::Ok().json(updated_wallet)
+                }
+            ))
+            .app_data(web::Data::new(mock_service))
+    )
+    .await;
+    
+    // Test updating only amount
+    let update = serde_json::json!({
+        "name": null,
+        "amount": {
+            "amount": "2500.50",
+            "currency": "EUR"
+        }
+    });
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/users/testuser/wallets/1")
+        .insert_header(("content-type", "application/json"))
+        .set_json(&update)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = test::read_body(resp).await;
+    let wallet: WalletDto = serde_json::from_slice(&body).unwrap();
+    assert_eq!(wallet.amount.currency, "EUR");
+}
+
+#[actix_rt::test]
+async fn test_update_wallet_nonexistent_user() {
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .route("/resources/users/{login}/wallets/{id}", web::put().to(
+                |user_service: web::Data<MockUserService>, path: web::Path<(String, i32)>, update: web::Json<UpdateWalletDto>| async move {
+                    let (login, wallet_id) = path.into_inner();
+                    match user_service.update_wallet(&login, wallet_id, update.into_inner()).await {
+                        Ok(wallet) => HttpResponse::Ok().json(wallet),
+                        Err(e) => e.error_response(),
+                    }
+                }
+            ))
+            .app_data(web::Data::new(mock_service))
+    )
+    .await;
+    
+    let update = serde_json::json!({
+        "name": "Updated Wallet"
+    });
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/users/nonexistentuser/wallets/1")
+        .insert_header(("content-type", "application/json"))
+        .set_json(&update)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[actix_rt::test]
+async fn test_update_wallet_not_authorized() {
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .route("/resources/users/{login}/wallets/{id}", web::put().to(
+                |user_service: web::Data<MockUserService>, path: web::Path<(String, i32)>, update: web::Json<UpdateWalletDto>| async move {
+                    let (login, wallet_id) = path.into_inner();
+                    match user_service.update_wallet(&login, wallet_id, update.into_inner()).await {
+                        Ok(wallet) => HttpResponse::Ok().json(wallet),
+                        Err(e) => e.error_response(),
+                    }
+                }
+            ))
+            .app_data(web::Data::new(mock_service))
+    )
+    .await;
+    
+    let update = serde_json::json!({
+        "name": "Trying to update"
+    });
+    
+    // Wallet ID 999 simulates a wallet that doesn't belong to the user
+    let req = test::TestRequest::put()
+        .uri("/resources/users/testuser/wallets/999")
+        .insert_header(("content-type", "application/json"))
+        .set_json(&update)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[actix_rt::test]
+async fn test_update_wallet_empty_name() {
+    use validator::Validate;
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .route("/resources/users/{login}/wallets/{id}", web::put().to(
+                |_user_service: web::Data<MockUserService>, _path: web::Path<(String, i32)>, update: web::Json<UpdateWalletDto>| async move {
+                    // Validate before processing
+                    if let Err(e) = update.validate() {
+                        return HttpResponse::BadRequest().json(serde_json::json!({
+                            "status": "400",
+                            "message": format!("Validation error: {}", e)
+                        }));
+                    }
+                    HttpResponse::Ok().finish()
+                }
+            ))
+            .app_data(web::Data::new(mock_service))
+    )
+    .await;
+    
+    let update = serde_json::json!({
+        "name": ""
+    });
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/users/testuser/wallets/1")
+        .insert_header(("content-type", "application/json"))
+        .set_json(&update)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
 #[actix_rt::test]

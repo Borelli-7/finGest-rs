@@ -13,6 +13,7 @@ pub fn user_routes(cfg: &mut web::ServiceConfig) {
             // Wallet endpoints
             .route("/{login}/wallets", web::get().to(user_handler::get_wallets))
             .route("/{login}/wallets", web::post().to(user_handler::create_wallet))
+            .route("/{login}/wallets/{id}", web::put().to(user_handler::update_wallet))
             .route("/{login}/wallets/{id}/summary", web::get().to(user_handler::get_summary))
             
             // Expense endpoints
