@@ -111,6 +111,19 @@ pub async fn update_wallet(
     Ok(HttpResponse::Ok().json(updated_wallet))
 }
 
+// Handler for DELETE /resources/users/{login}/wallets/{id}
+pub async fn delete_wallet(
+    pool: web::Data<PgPool>,
+    path: web::Path<(String, i32)>,
+) -> Result<impl Responder, AppError> {
+    let (login, wallet_id) = path.into_inner();
+    
+    let user_service = UserService::new(pool.get_ref().clone());
+    user_service.delete_wallet(&login, wallet_id).await?;
+    
+    Ok(HttpResponse::NoContent().finish())
+}
+
 // Handler for GET /resources/users/{login}/wallets/{id}/summary
 pub async fn get_summary(
     pool: web::Data<PgPool>,

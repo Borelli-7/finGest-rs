@@ -222,6 +222,30 @@ impl UserServiceTrait for MockUserService {
             amount: new_amount,
         })
     }
+
+    async fn delete_wallet(&self, login: &str, wallet_id: i32) -> Result<(), AppError> {
+        // Simulate user validation
+        if login != "testuser" {
+            return Err(AppError::NotFoundError(format!("User with login '{}' not found", login)));
+        }
+        
+        // Simulate wallet not found (wallet 999 doesn't exist)
+        if wallet_id == 999 {
+            return Err(AppError::NotFoundError(
+                format!("Wallet with id {} not found", wallet_id)
+            ));
+        }
+        
+        // Simulate not authorized (wallet 888 exists but belongs to another user)
+        if wallet_id == 888 {
+            return Err(AppError::AuthorizationError(
+                "Not authorized to delete this wallet".to_string()
+            ));
+        }
+        
+        // Wallets 1 and 2 belong to testuser and can be deleted
+        Ok(())
+    }
     
     async fn get_summary(&self, login: &str, _wallet_id: i32, _date_range: DateRange) -> Result<Summary, AppError> {
         // Simulate user validation
@@ -1587,6 +1611,126 @@ async fn test_delete_user_not_found() {
     
     // Assert - should return 404 Not Found
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+// ============================================
+// Delete Wallet Tests
+// ============================================
+
+#[actix_rt::test]
+async fn test_delete_wallet_success() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/wallets/{id}", web::delete().to(|
+                path: web::Path<(String, i32)>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, wallet_id) = path.into_inner();
+                svc.delete_wallet(&login, wallet_id).await?;
+                Ok::<_, AppError>(HttpResponse::NoContent().finish())
+            }))
+    )
+    .await;
+    
+    // Act - Delete wallet ID 1 for testuser
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/testuser/wallets/1")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 204 No Content
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+}
+
+#[actix_rt::test]
+async fn test_delete_wallet_user_not_found() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/wallets/{id}", web::delete().to(|
+                path: web::Path<(String, i32)>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, wallet_id) = path.into_inner();
+                svc.delete_wallet(&login, wallet_id).await?;
+                Ok::<_, AppError>(HttpResponse::NoContent().finish())
+            }))
+    )
+    .await;
+    
+    // Act - Try to delete wallet for non-existent user
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/nonexistentuser/wallets/1")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 404 Not Found
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[actix_rt::test]
+async fn test_delete_wallet_wallet_not_found() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/wallets/{id}", web::delete().to(|
+                path: web::Path<(String, i32)>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, wallet_id) = path.into_inner();
+                svc.delete_wallet(&login, wallet_id).await?;
+                Ok::<_, AppError>(HttpResponse::NoContent().finish())
+            }))
+    )
+    .await;
+    
+    // Act - Try to delete non-existent wallet (ID 999)
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/testuser/wallets/999")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 404 Not Found
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[actix_rt::test]
+async fn test_delete_wallet_not_authorized() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/wallets/{id}", web::delete().to(|
+                path: web::Path<(String, i32)>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, wallet_id) = path.into_inner();
+                svc.delete_wallet(&login, wallet_id).await?;
+                Ok::<_, AppError>(HttpResponse::NoContent().finish())
+            }))
+    )
+    .await;
+    
+    // Act - Try to delete wallet that belongs to another user (ID 888)
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/testuser/wallets/888")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 403 Forbidden
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
 
 

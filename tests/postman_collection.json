@@ -2882,6 +2882,273 @@
             "description": "Attempt to update wallet without authentication - should return 401 Unauthorized"
           },
           "response": []
+        },
+        {
+          "name": "Delete Wallet - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "delete-wallet-success-001",
+                "exec": [
+                  "// ============================================",
+                  "// Delete Wallet - Success (204 No Content)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 204 No Content', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Response body is empty', function () {",
+                  "    pm.expect(pm.response.text()).to.be.empty;",
+                  "});",
+                  "",
+                  "// Clean up the wallet ID variable",
+                  "pm.collectionVariables.unset('created_wallet_id');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-wallet-success-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{created_wallet_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{created_wallet_id}}"
+              ]
+            },
+            "description": "Delete an existing wallet - should return 204 No Content"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Wallet - Not Found (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "delete-wallet-notfound-001",
+                "exec": [
+                  "// ============================================",
+                  "// Delete Wallet - Not Found (404 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates wallet not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('not found') || msg.includes('wallet');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-wallet-notfound-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/99999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "99999"
+              ]
+            },
+            "description": "Attempt to delete non-existent wallet - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Wallet - User Not Found (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "delete-wallet-user-notfound-001",
+                "exec": [
+                  "// ============================================",
+                  "// Delete Wallet - User Not Found (404 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates user not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('not found') || msg.includes('user');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-wallet-user-notfound-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/nonexistent_user/wallets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "nonexistent_user",
+                "wallets",
+                "1"
+              ]
+            },
+            "description": "Attempt to delete wallet for non-existent user - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Wallet - Not Authorized (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "delete-wallet-forbidden-001",
+                "exec": [
+                  "// ============================================",
+                  "// Delete Wallet - Not Authorized (403 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates not authorized', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('authorized') || msg.includes('forbidden') || msg.includes('permission');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-wallet-forbidden-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/other_user/wallets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "other_user",
+                "wallets",
+                "1"
+              ]
+            },
+            "description": "Attempt to delete wallet that belongs to another user - should return 403 Forbidden"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Wallet - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "delete-wallet-noauth-001",
+                "exec": [
+                  "// ============================================",
+                  "// Delete Wallet - Missing Auth (401 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates missing authentication', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('authorization') || msg.includes('unauthorized') || msg.includes('missing');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-wallet-noauth-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "1"
+              ]
+            },
+            "description": "Attempt to delete wallet without authentication - should return 401 Unauthorized"
+          },
+          "response": []
         }
       ],
       "id": "3b62a6f3-79de-4fe1-bda9-c0bcc4da3b22",
