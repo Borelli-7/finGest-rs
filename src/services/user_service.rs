@@ -23,6 +23,7 @@ pub trait UserServiceTrait: Send + Sync {
     async fn get_wallets(&self, login: &str) -> Result<Vec<WalletDto>, AppError>;
     async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, AppError>;
     async fn update_wallet(&self, login: &str, wallet_id: i32, update_data: UpdateWalletDto) -> Result<WalletDto, AppError>;
+    async fn delete_wallet(&self, login: &str, wallet_id: i32) -> Result<(), AppError>;
     async fn get_summary(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Summary, AppError>;
     async fn get_expenses(
         &self,
@@ -311,6 +312,89 @@ impl UserServiceTrait for UserService {
             name: new_name.clone(),
             amount: new_amount.clone(),
         })
+    }
+
+    async fn delete_wallet(&self, login: &str, wallet_id: i32) -> Result<(), AppError> {
+        // First check if the user exists
+        self.check_user_exists(login).await?;
+
+        // Check if the wallet exists and belongs to the user
+        let wallet_belongs_to_user = sqlx::query(
+            "SELECT 1 FROM account_wallet 
+            WHERE account_login = $1 AND wallet_id = $2"
+        )
+        .bind(login)
+        .bind(wallet_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        if wallet_belongs_to_user.is_none() {
+            // Check if wallet exists at all to provide appropriate error
+            let wallet_exists = sqlx::query(
+                "SELECT 1 FROM wallet WHERE id = $1"
+            )
+            .bind(wallet_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+            if wallet_exists.is_some() {
+                // Wallet exists but doesn't belong to this user
+                return Err(AppError::AuthorizationError(
+                    "Not authorized to delete this wallet".to_string()
+                ));
+            } else {
+                // Wallet doesn't exist
+                return Err(AppError::NotFoundError(
+                    format!("Wallet with id {} not found", wallet_id)
+                ));
+            }
+        }
+
+        // Start a transaction to ensure data consistency
+        let mut tx = self.pool.begin().await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // Delete all expenses associated with the wallet first
+        sqlx::query(
+            "DELETE FROM expense WHERE wallet_id = $1"
+        )
+        .bind(wallet_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // Delete the account_wallet association
+        sqlx::query(
+            "DELETE FROM account_wallet WHERE wallet_id = $1"
+        )
+        .bind(wallet_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // Delete the wallet itself
+        let result = sqlx::query(
+            "DELETE FROM wallet WHERE id = $1"
+        )
+        .bind(wallet_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // Verify deletion was successful
+        if result.rows_affected() == 0 {
+            return Err(AppError::DatabaseError(
+                "Failed to delete wallet".to_string()
+            ));
+        }
+
+        // Commit the transaction
+        tx.commit().await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(())
     }
 
     async fn get_summary(&self, login: &str, wallet_id: i32, _date_range: DateRange) -> Result<Summary, AppError> {
@@ -651,6 +735,7 @@ mod tests {
             async fn get_wallets(&self, login: &str) -> Result<Vec<WalletDto>, AppError>;
             async fn add_wallet(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, AppError>;
             async fn update_wallet(&self, login: &str, wallet_id: i32, update_data: UpdateWalletDto) -> Result<WalletDto, AppError>;
+            async fn delete_wallet(&self, login: &str, wallet_id: i32) -> Result<(), AppError>;
             async fn get_summary(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Summary, AppError>;
             async fn get_expenses(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Vec<Expense>, AppError>;
             async fn get_highest_expense(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Option<Expense>, AppError>;
