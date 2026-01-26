@@ -3609,6 +3609,544 @@
           "response": []
         },
         {
+          "name": "Update Expense - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Expense - Success (200)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains updated expense data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('amount');",
+                  "    pm.expect(jsonData).to.have.property('description');",
+                  "    pm.expect(jsonData).to.have.property('date');",
+                  "    pm.expect(jsonData).to.have.property('category');",
+                  "});",
+                  "",
+                  "pm.test('Updated expense has correct data types', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.be.a('number');",
+                  "    pm.expect(jsonData.description).to.be.a('string');",
+                  "    pm.expect(jsonData.amount).to.be.an('object');",
+                  "    pm.expect(jsonData.category).to.be.an('object');",
+                  "});",
+                  "",
+                  "pm.test('Updated expense description matches request', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.description).to.equal('Updated Expense Description');",
+                  "});",
+                  "",
+                  "pm.test('Expense amount structure is correct', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.amount).to.have.property('amount');",
+                  "    pm.expect(jsonData.amount).to.have.property('currency');",
+                  "});",
+                  "",
+                  "pm.test('Expense category structure is correct', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.category).to.have.property('name');",
+                  "    pm.expect(jsonData.category).to.have.property('profit');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-expense-success-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated Expense Description\",\n  \"amount\": {\n    \"amount\": \"75.50\",\n    \"currency\": \"PLN\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/expenses/{{test_expense_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "expenses",
+                "{{test_expense_id}}"
+              ]
+            },
+            "description": "Update an existing expense with new description and amount - should return 200 OK"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense - Partial Update (Description Only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Expense - Partial Update (200)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains updated expense data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('description');",
+                  "});",
+                  "",
+                  "pm.test('Only description was updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.description).to.equal('Only Description Changed');",
+                  "});",
+                  "",
+                  "pm.test('Other fields preserved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.amount).to.be.an('object');",
+                  "    pm.expect(jsonData.category).to.be.an('object');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-expense-partial-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Only Description Changed\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/expenses/{{test_expense_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "expenses",
+                "{{test_expense_id}}"
+              ]
+            },
+            "description": "Update only the expense description - should return 200 OK"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense - Non-existent User (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Expense - Non-existent User (404)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates user not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.include('not found');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-expense-user-notfound-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Test Update\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/nonexistent_user_12345/wallets/1/expenses/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "nonexistent_user_12345",
+                "wallets",
+                "1",
+                "expenses",
+                "1"
+              ]
+            },
+            "description": "Attempt to update expense for non-existent user - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense - Non-existent Wallet (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Expense - Non-existent Wallet (404)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates wallet not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('wallet') && msg.includes('not found');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-expense-wallet-notfound-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Test Update\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/999999/expenses/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "999999",
+                "expenses",
+                "1"
+              ]
+            },
+            "description": "Attempt to update expense in non-existent wallet - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense - Non-existent Expense (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Expense - Non-existent Expense (404)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates expense not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('expense') && msg.includes('not found');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-expense-expense-notfound-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Test Update\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/expenses/999999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "expenses",
+                "999999"
+              ]
+            },
+            "description": "Attempt to update non-existent expense - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense - Not Authorized (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Expense - Not Authorized (403)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates not authorized', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.include('not authorized');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-expense-notauthorized-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Test Update\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{other_user_wallet_id}}/expenses/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{other_user_wallet_id}}",
+                "expenses",
+                "1"
+              ]
+            },
+            "description": "Attempt to update expense in another user's wallet - should return 403 Forbidden"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense - Invalid Data (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Expense - Invalid Data (400)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-expense-invalid-data-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/expenses/{{test_expense_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "expenses",
+                "{{test_expense_id}}"
+              ]
+            },
+            "description": "Attempt to update expense with empty description - should return 400 Bad Request"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Expense - Missing Auth (401)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error response does not leak sensitive data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.not.have.property('stack');",
+                  "    pm.expect(jsonData).to.not.have.property('trace');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-expense-noauth-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Unauthorized Update\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/wallets/{{test_wallet_id}}/expenses/{{test_expense_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "wallets",
+                "{{test_wallet_id}}",
+                "expenses",
+                "{{test_expense_id}}"
+              ]
+            },
+            "description": "Attempt to update expense without authentication - should return 401 Unauthorized"
+          },
+          "response": []
+        },
+        {
           "name": "Get Highest Expense - Success",
           "event": [
             {
