@@ -36,6 +36,21 @@ pub struct ExpenseInputDto {
     pub category: Category,
 }
 
+// DTO for updating existing expenses
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct UpdateExpenseDto {
+    #[validate(nested)]
+    pub amount: Option<Money>,
+    
+    pub date: Option<NaiveDate>,
+    
+    #[validate(length(min = 1, max = 255, message = "Description must be between 1 and 255 characters"))]
+    pub description: Option<String>,
+    
+    #[validate(nested)]
+    pub category: Option<Category>,
+}
+
 impl From<ExpenseInputDto> for Expense {
     fn from(dto: ExpenseInputDto) -> Self {
         Self {
@@ -103,5 +118,38 @@ mod tests {
         assert_eq!(expense.id, None);
         assert_eq!(expense.amount.currency, "EUR");
         assert_eq!(expense.description, "Restaurant");
+    }
+    
+    #[test]
+    fn test_update_expense_dto_validation_success() {
+        let update_dto = UpdateExpenseDto {
+            amount: Some(Money::new(BigDecimal::from(150), Some("EUR".to_string()))),
+            date: Some(NaiveDate::from_ymd_opt(2023, 8, 15).unwrap()),
+            description: Some("Updated grocery shopping".to_string()),
+            category: Some(Category::new("Food".to_string(), false)),
+        };
+        assert!(update_dto.validate().is_ok());
+    }
+    
+    #[test]
+    fn test_update_expense_dto_partial_update() {
+        let update_dto = UpdateExpenseDto {
+            amount: None,
+            date: None,
+            description: Some("Only description updated".to_string()),
+            category: None,
+        };
+        assert!(update_dto.validate().is_ok());
+    }
+    
+    #[test]
+    fn test_update_expense_dto_empty_description_validation_error() {
+        let update_dto = UpdateExpenseDto {
+            amount: None,
+            date: None,
+            description: Some("".to_string()),
+            category: None,
+        };
+        assert!(update_dto.validate().is_err());
     }
 }

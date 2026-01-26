@@ -8,7 +8,7 @@ use crate::models::{Category, Money};
 use crate::{
     errors::AppError,
     models::{
-        Budget, BudgetOutputDto, DateRange, Expense, ExpenseInputDto,
+        Budget, BudgetOutputDto, DateRange, Expense, ExpenseInputDto, UpdateExpenseDto,
         Summary, User, UserDto, Wallet, WalletDto, UpdateWalletDto,
     },
 };
@@ -42,6 +42,13 @@ pub trait UserServiceTrait: Send + Sync {
         login: &str,
         wallet_id: i32,
         expense: ExpenseInputDto,
+    ) -> Result<Expense, AppError>;
+    async fn update_expense(
+        &self,
+        login: &str,
+        wallet_id: i32,
+        expense_id: i32,
+        update_data: UpdateExpenseDto,
     ) -> Result<Expense, AppError>;
     async fn delete_expense(&self, login: &str, wallet_id: i32, expense_id: i32) -> Result<(), AppError>;
     async fn get_counted_categories(
@@ -659,6 +666,203 @@ impl UserServiceTrait for UserService {
         Ok(created_expense)
     }
 
+    async fn update_expense(&self, login: &str, wallet_id: i32, expense_id: i32, update_data: UpdateExpenseDto) -> Result<Expense, AppError> {
+        // First check if the user exists
+        self.check_user_exists(login).await?;
+
+        // Check if the wallet exists and belongs to the user
+        let wallet_belongs_to_user = sqlx::query(
+            "SELECT 1 FROM account_wallet 
+            WHERE account_login = $1 AND wallet_id = $2"
+        )
+        .bind(login)
+        .bind(wallet_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        if wallet_belongs_to_user.is_none() {
+            // Check if wallet exists at all to provide appropriate error
+            let wallet_exists = sqlx::query(
+                "SELECT 1 FROM wallet WHERE id = $1"
+            )
+            .bind(wallet_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+            if wallet_exists.is_some() {
+                // Wallet exists but doesn't belong to this user
+                return Err(AppError::AuthorizationError(
+                    "Not authorized to update expenses in this wallet".to_string()
+                ));
+            } else {
+                // Wallet doesn't exist
+                return Err(AppError::NotFoundError(
+                    format!("Wallet with id {} not found", wallet_id)
+                ));
+            }
+        }
+
+        // Check if the expense exists and belongs to the wallet
+        let existing_expense = sqlx::query(
+            "SELECT 
+                id, 
+                amount_amount, 
+                amount_currency, 
+                date, 
+                description, 
+                category_name, 
+                category_profit 
+            FROM expense 
+            WHERE id = $1 AND wallet_id = $2"
+        )
+        .bind(expense_id)
+        .bind(wallet_id)
+        .map(|row: sqlx::postgres::PgRow| {
+            Expense {
+                id: row.get("id"),
+                amount: Money {
+                    amount: row.get("amount_amount"),
+                    currency: row.get("amount_currency"),
+                },
+                date: row.get("date"),
+                description: row.get("description"),
+                category: Category {
+                    name: row.get("category_name"),
+                    profit: row.get("category_profit"),
+                },
+            }
+        })
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let existing_expense = match existing_expense {
+            Some(expense) => expense,
+            None => {
+                // Check if expense exists at all to provide appropriate error
+                let expense_exists = sqlx::query(
+                    "SELECT 1 FROM expense WHERE id = $1"
+                )
+                .bind(expense_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+                if expense_exists.is_some() {
+                    // Expense exists but doesn't belong to this wallet (hence not to this user)
+                    return Err(AppError::AuthorizationError(
+                        "Not authorized to update this expense".to_string()
+                    ));
+                } else {
+                    // Expense doesn't exist
+                    return Err(AppError::NotFoundError(
+                        format!("Expense with id {} not found", expense_id)
+                    ));
+                }
+            }
+        };
+
+        // Prepare the updated values (use existing values if not provided)
+        let new_amount = update_data.amount.as_ref().unwrap_or(&existing_expense.amount);
+        let new_date = update_data.date.unwrap_or(existing_expense.date);
+        let new_description = update_data.description.as_ref().unwrap_or(&existing_expense.description);
+        let new_category = update_data.category.as_ref().unwrap_or(&existing_expense.category);
+
+        // If category is being updated, validate it exists
+        if update_data.category.is_some() {
+            let category_exists = sqlx::query(
+                "SELECT 1 FROM category 
+                WHERE name = $1 AND profit = $2"
+            )
+            .bind(&new_category.name)
+            .bind(new_category.profit)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .is_some();
+
+            if !category_exists {
+                return Err(AppError::BadRequestError(
+                    format!("Category {} with profit={} does not exist", new_category.name, new_category.profit)
+                ));
+            }
+        }
+
+        // Calculate the difference in amount for wallet balance update
+        let old_impact = if existing_expense.category.profit {
+            existing_expense.amount.amount.clone()
+        } else {
+            -existing_expense.amount.amount.clone()
+        };
+
+        let new_impact = if new_category.profit {
+            new_amount.amount.clone()
+        } else {
+            -new_amount.amount.clone()
+        };
+
+        // Update the expense
+        let updated_expense = sqlx::query(
+            "UPDATE expense 
+            SET amount_amount = $1, 
+                amount_currency = $2, 
+                date = TO_DATE($3, 'YYYY-MM-DD'), 
+                description = $4, 
+                category_name = $5, 
+                category_profit = $6 
+            WHERE id = $7 
+            RETURNING id, amount_amount, amount_currency, date, description, category_name, category_profit"
+        )
+        .bind(&new_amount.amount)
+        .bind(&new_amount.currency)
+        .bind(new_date.to_string())
+        .bind(new_description)
+        .bind(&new_category.name)
+        .bind(new_category.profit)
+        .bind(expense_id)
+        .map(|row: sqlx::postgres::PgRow| {
+            Expense {
+                id: row.get("id"),
+                amount: Money {
+                    amount: row.get("amount_amount"),
+                    currency: row.get("amount_currency"),
+                },
+                date: row.get("date"),
+                description: row.get("description"),
+                category: Category {
+                    name: row.get("category_name"),
+                    profit: row.get("category_profit"),
+                },
+            }
+        })
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // Update wallet balance if amount or category profit changed
+        // Only update if the currency matches to avoid complex currency conversion
+        if existing_expense.amount.currency == new_amount.currency {
+            let balance_adjustment = new_impact - old_impact;
+            if balance_adjustment != BigDecimal::from(0) {
+                sqlx::query(
+                    "UPDATE wallet 
+                    SET amount_amount = amount_amount + $1 
+                    WHERE id = $2 AND amount_currency = $3"
+                )
+                .bind(&balance_adjustment)
+                .bind(wallet_id)
+                .bind(&new_amount.currency)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            }
+        }
+
+        Ok(updated_expense)
+    }
+
     async fn delete_expense(&self, login: &str, wallet_id: i32, expense_id: i32) -> Result<(), AppError> {
         // First verify the wallet belongs to the user
         let belongs_to_user = sqlx::query(
@@ -740,6 +944,7 @@ mod tests {
             async fn get_expenses(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Vec<Expense>, AppError>;
             async fn get_highest_expense(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<Option<Expense>, AppError>;
             async fn add_expense(&self, login: &str, wallet_id: i32, expense: ExpenseInputDto) -> Result<Expense, AppError>;
+            async fn update_expense(&self, login: &str, wallet_id: i32, expense_id: i32, update_data: UpdateExpenseDto) -> Result<Expense, AppError>;
             async fn delete_expense(&self, login: &str, wallet_id: i32, expense_id: i32) -> Result<(), AppError>;
             async fn get_counted_categories(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<HashMap<String, BigDecimal>, AppError>;
             async fn get_budgets(&self, login: &str, start: DateRange, end: DateRange) -> Result<Vec<BudgetOutputDto>, AppError>;

@@ -5,7 +5,7 @@ use validator::Validate;
 
 use crate::{
     errors::AppError,
-    models::{BudgetInputDto, DateRange, ExpenseInputDto, WalletDto, UpdateWalletDto},
+    models::{BudgetInputDto, DateRange, ExpenseInputDto, UpdateExpenseDto, WalletDto, UpdateWalletDto},
     services::UserService,
     services::user_service::UserServiceTrait,
 };
@@ -213,6 +213,27 @@ pub async fn delete_expense(
     user_service.delete_expense(&login, wallet_id, expense_id).await?;
     
     Ok(HttpResponse::NoContent().finish())
+}
+
+// Handler for PUT /resources/users/{login}/wallets/{wallet_id}/expenses/{expense_id}
+pub async fn update_expense(
+    pool: web::Data<PgPool>,
+    path: web::Path<(String, i32, i32)>,
+    expense_update: web::Json<UpdateExpenseDto>,
+) -> Result<impl Responder, AppError> {
+    let (login, wallet_id, expense_id) = path.into_inner();
+    
+    // Validate the update data
+    expense_update
+        .validate()
+        .map_err(|e| AppError::ValidationError(
+            format!("Invalid expense update data: {}", e)
+        ))?;
+    
+    let user_service = UserService::new(pool.get_ref().clone());
+    let updated_expense = user_service.update_expense(&login, wallet_id, expense_id, expense_update.into_inner()).await?;
+    
+    Ok(HttpResponse::Ok().json(updated_expense))
 }
 
 // Handler for GET /resources/users/{login}/wallets/{id}/counted_categories
