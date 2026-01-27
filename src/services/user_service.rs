@@ -60,6 +60,7 @@ pub trait UserServiceTrait: Send + Sync {
     async fn get_budgets(
         &self,
         login: &str,
+        authenticated_login: &str,
         start: DateRange,
         end: DateRange,
     ) -> Result<Vec<BudgetOutputDto>, AppError>;
@@ -911,9 +912,96 @@ impl UserServiceTrait for UserService {
         Ok(HashMap::new())
     }
 
-    async fn get_budgets(&self, _login: &str, _start: DateRange, _end: DateRange) -> Result<Vec<BudgetOutputDto>, AppError> {
-        // Implementation placeholder
-        Ok(Vec::new())
+    async fn get_budgets(
+        &self,
+        login: &str,
+        authenticated_login: &str,
+        start_range: DateRange,
+        end_range: DateRange,
+    ) -> Result<Vec<BudgetOutputDto>, AppError> {
+        // First, check if the target user exists
+        self.check_user_exists(login).await?;
+        
+        // Verify the authenticated user is accessing their own budgets
+        // Authorization check: user can only access their own budgets
+        if login != authenticated_login {
+            return Err(AppError::AuthorizationError(
+                "Not authorized to access budgets for this user".to_string()
+            ));
+        }
+        
+        // Build the query with optional date range filters
+        // Fetch budgets that belong to the authenticated user and fall within the date ranges
+        let budgets = sqlx::query(
+            r#"
+            SELECT 
+                b.id,
+                b.category_name,
+                b.category_profit,
+                b.total_amount,
+                b.total_currency,
+                b.start_date,
+                b.end_date,
+                COALESCE(SUM(
+                    CASE 
+                        WHEN e.category_profit = false AND e.date >= b.start_date AND e.date <= b.end_date 
+                        THEN e.amount_amount 
+                        ELSE 0 
+                    END
+                ), 0) as spent_amount
+            FROM budget b
+            LEFT JOIN account_wallet aw ON aw.account_login = b.account_login
+            LEFT JOIN expense e ON e.wallet_id = aw.wallet_id AND e.category_name = b.category_name
+            WHERE b.account_login = $1
+                AND ($2::date IS NULL OR b.start_date >= $2::date)
+                AND ($3::date IS NULL OR b.start_date <= $3::date)
+                AND ($4::date IS NULL OR b.end_date >= $4::date)
+                AND ($5::date IS NULL OR b.end_date <= $5::date)
+            GROUP BY b.id, b.category_name, b.category_profit, b.total_amount, b.total_currency, b.start_date, b.end_date
+            ORDER BY b.start_date DESC
+            "#
+        )
+        .bind(login)
+        .bind(start_range.start)
+        .bind(start_range.end)
+        .bind(end_range.start)
+        .bind(end_range.end)
+        .map(|row: sqlx::postgres::PgRow| {
+            let total_amount: BigDecimal = row.get("total_amount");
+            let spent_amount: BigDecimal = row.get("spent_amount");
+            let left_amount = &total_amount - &spent_amount;
+            let currency: Option<String> = row.get("total_currency");
+            let currency_str = currency.unwrap_or_else(|| "PLN".to_string());
+            
+            BudgetOutputDto {
+                id: row.get("id"),
+                category: Category {
+                    name: row.get("category_name"),
+                    profit: row.get("category_profit"),
+                },
+                total: Money {
+                    amount: total_amount,
+                    currency: currency_str.clone(),
+                },
+                date_range: DateRange::new(
+                    row.get("start_date"),
+                    row.get("end_date"),
+                ),
+                spent: Money {
+                    amount: spent_amount,
+                    currency: currency_str.clone(),
+                },
+                left: Money {
+                    amount: left_amount,
+                    currency: currency_str,
+                },
+            }
+        })
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        
+        Ok(budgets)
     }
 
     async fn add_budget(&self, _login: &str, budget: Budget) -> Result<Budget, AppError> {
@@ -1123,7 +1211,7 @@ mod tests {
             async fn update_expense(&self, login: &str, wallet_id: i32, expense_id: i32, update_data: UpdateExpenseDto) -> Result<Expense, AppError>;
             async fn delete_expense(&self, login: &str, wallet_id: i32, expense_id: i32) -> Result<(), AppError>;
             async fn get_counted_categories(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<HashMap<String, BigDecimal>, AppError>;
-            async fn get_budgets(&self, login: &str, start: DateRange, end: DateRange) -> Result<Vec<BudgetOutputDto>, AppError>;
+            async fn get_budgets(&self, login: &str, authenticated_login: &str, start: DateRange, end: DateRange) -> Result<Vec<BudgetOutputDto>, AppError>;
             async fn add_budget(&self, login: &str, budget: Budget) -> Result<Budget, AppError>;
             async fn update_budget(&self, login: &str, budget_id: i32, update_data: UpdateBudgetDto) -> Result<Budget, AppError>;
             async fn delete_budget(&self, login: &str, budget_id: i32) -> Result<(), AppError>;

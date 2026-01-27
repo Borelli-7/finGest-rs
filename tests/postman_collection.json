@@ -4557,6 +4557,229 @@
           "response": []
         },
         {
+          "name": "Get User Budgets - User Not Found (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "get-budgets-user-notfound-test-001",
+                "exec": [
+                  "// ============================================",
+                  "// Get User Budgets - User Not Found (404 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 404', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('404');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates user not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('user') && (msg.includes('not found') || msg.includes('notfound'));",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "get-budgets-user-notfound-prerequest-001",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "id": "get-budgets-user-notfound-001",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/nonexistent_user_xyz/budgets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "nonexistent_user_xyz",
+                "budgets"
+              ]
+            },
+            "description": "Attempt to get budgets for a non-existent user - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Budgets - Not Authorized (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "get-budgets-notauth-test-001",
+                "exec": [
+                  "// ============================================",
+                  "// Get User Budgets - Not Authorized (403 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 403', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('403');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates authorization failure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('not authorized') || msg.includes('forbidden') || msg.includes('access');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "get-budgets-notauth-prerequest-001",
+                "exec": [
+                  "// This test requires the authenticated user to be different from the requested user",
+                  "// The test assumes {{another_user_login}} is set to a different user's login"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "id": "get-budgets-notauth-001",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{another_user_login}}/budgets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{another_user_login}}",
+                "budgets"
+              ]
+            },
+            "description": "Attempt to get budgets for another user - should return 403 Forbidden when authenticated user tries to access another user's budgets"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Budgets - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "get-budgets-noauth-test-001",
+                "exec": [
+                  "// ============================================",
+                  "// Get User Budgets - Missing Auth (401 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 401', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('401');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates authentication required', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('authentication') || msg.includes('token') || msg.includes('unauthorized') || msg.includes('missing');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "get-budgets-noauth-prerequest-001",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "id": "get-budgets-noauth-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets"
+              ]
+            },
+            "description": "Attempt to get budgets without authentication - should return 401 Unauthorized"
+          },
+          "response": []
+        },
+        {
           "name": "Create Budget - Success",
           "event": [
             {
