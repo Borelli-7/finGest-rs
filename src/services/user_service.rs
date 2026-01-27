@@ -8,7 +8,7 @@ use crate::models::{Category, Money};
 use crate::{
     errors::AppError,
     models::{
-        Budget, BudgetOutputDto, DateRange, Expense, ExpenseInputDto, UpdateExpenseDto,
+        Budget, BudgetOutputDto, UpdateBudgetDto, DateRange, Expense, ExpenseInputDto, UpdateExpenseDto,
         Summary, User, UserDto, Wallet, WalletDto, UpdateWalletDto,
     },
 };
@@ -64,6 +64,12 @@ pub trait UserServiceTrait: Send + Sync {
         end: DateRange,
     ) -> Result<Vec<BudgetOutputDto>, AppError>;
     async fn add_budget(&self, login: &str, budget: Budget) -> Result<Budget, AppError>;
+    async fn update_budget(
+        &self,
+        login: &str,
+        budget_id: i32,
+        update_data: UpdateBudgetDto,
+    ) -> Result<Budget, AppError>;
 }
 
 pub struct UserService {
@@ -918,6 +924,135 @@ impl UserServiceTrait for UserService {
         };
         Ok(created_budget)
     }
+
+    async fn update_budget(
+        &self,
+        login: &str,
+        budget_id: i32,
+        update_data: UpdateBudgetDto,
+    ) -> Result<Budget, AppError> {
+        // First, check if the user exists
+        self.check_user_exists(login).await?;
+
+        // Check if the budget exists and get its current data
+        let existing_budget = sqlx::query(
+            "SELECT 
+                id, 
+                category_name, 
+                category_profit, 
+                total_amount, 
+                total_currency, 
+                start_date, 
+                end_date,
+                account_login
+            FROM budget 
+            WHERE id = $1"
+        )
+        .bind(budget_id)
+        .map(|row: sqlx::postgres::PgRow| {
+            (Budget {
+                id: row.get("id"),
+                category: Category {
+                    name: row.get("category_name"),
+                    profit: row.get("category_profit"),
+                },
+                total: Money {
+                    amount: row.get("total_amount"),
+                    currency: row.get("total_currency"),
+                },
+                date_range: DateRange::new(
+                    row.get("start_date"),
+                    row.get("end_date"),
+                ),
+            }, row.get::<String, _>("account_login"))
+        })
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let (existing_budget, owner_login) = match existing_budget {
+            Some(data) => data,
+            None => {
+                return Err(AppError::NotFoundError(
+                    format!("Budget with id {} not found", budget_id)
+                ));
+            }
+        };
+
+        // Check if the authenticated user is the owner of the budget
+        if owner_login != login {
+            return Err(AppError::AuthorizationError(
+                "Not authorized to update this budget".to_string()
+            ));
+        }
+
+        // Prepare the updated values (use existing values if not provided)
+        let new_category = update_data.category.as_ref().unwrap_or(&existing_budget.category);
+        let new_total = update_data.total.as_ref().unwrap_or(&existing_budget.total);
+        let new_date_range = update_data.date_range.as_ref().unwrap_or(&existing_budget.date_range);
+
+        // Validate that the new category exists if it's being updated
+        if update_data.category.is_some() {
+            let category_exists = sqlx::query(
+                "SELECT 1 FROM category 
+                WHERE name = $1 AND profit = $2"
+            )
+            .bind(&new_category.name)
+            .bind(new_category.profit)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?
+            .is_some();
+
+            if !category_exists {
+                return Err(AppError::BadRequestError(
+                    format!("Category {} with profit={} does not exist", new_category.name, new_category.profit)
+                ));
+            }
+        }
+
+        // Update the budget in the database
+        let updated_budget = sqlx::query(
+            "UPDATE budget 
+            SET category_name = $1, 
+                category_profit = $2, 
+                total_amount = $3, 
+                total_currency = $4, 
+                start_date = $5, 
+                end_date = $6 
+            WHERE id = $7 
+            RETURNING id, category_name, category_profit, total_amount, total_currency, start_date, end_date"
+        )
+        .bind(&new_category.name)
+        .bind(new_category.profit)
+        .bind(&new_total.amount)
+        .bind(&new_total.currency)
+        .bind(new_date_range.start)
+        .bind(new_date_range.end)
+        .bind(budget_id)
+        .map(|row: sqlx::postgres::PgRow| {
+            Budget {
+                id: row.get("id"),
+                category: Category {
+                    name: row.get("category_name"),
+                    profit: row.get("category_profit"),
+                },
+                total: Money {
+                    amount: row.get("total_amount"),
+                    currency: row.get("total_currency"),
+                },
+                date_range: DateRange::new(
+                    row.get("start_date"),
+                    row.get("end_date"),
+                ),
+            }
+        })
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(updated_budget)
+    }
 }
 
 #[cfg(test)]
@@ -949,6 +1084,7 @@ mod tests {
             async fn get_counted_categories(&self, login: &str, wallet_id: i32, date_range: DateRange) -> Result<HashMap<String, BigDecimal>, AppError>;
             async fn get_budgets(&self, login: &str, start: DateRange, end: DateRange) -> Result<Vec<BudgetOutputDto>, AppError>;
             async fn add_budget(&self, login: &str, budget: Budget) -> Result<Budget, AppError>;
+            async fn update_budget(&self, login: &str, budget_id: i32, update_data: UpdateBudgetDto) -> Result<Budget, AppError>;
         }
     }
 }

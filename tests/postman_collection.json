@@ -4838,6 +4838,389 @@
             "description": "Attempt to create budget with missing required fields - should fail"
           },
           "response": []
+        },
+        {
+          "name": "Update Budget - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Budget - Success (200)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains updated budget data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('category');",
+                  "    pm.expect(jsonData).to.have.property('total');",
+                  "    pm.expect(jsonData).to.have.property('date_range');",
+                  "});",
+                  "",
+                  "pm.test('Updated total amount reflects the change', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.total.amount).to.exist;",
+                  "    pm.expect(parseFloat(jsonData.total.amount)).to.be.a('number');",
+                  "});",
+                  "",
+                  "pm.test('Budget ID matches the requested ID', function () {",
+                  "    const budgetId = pm.environment.get('created_budget_id');",
+                  "    if (budgetId) {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.id).to.eql(parseInt(budgetId));",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-budget-success-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"total\": {\n    \"amount\": \"750.00\",\n    \"currency\": \"PLN\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets/{{created_budget_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets",
+                "{{created_budget_id}}"
+              ]
+            },
+            "description": "Update an existing budget's total amount - should return 200 OK"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Budget - Partial Update (Category Only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Budget - Partial Update (200)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains updated budget with new category', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.category).to.exist;",
+                  "    pm.expect(jsonData.category.name).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Other fields remain unchanged', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.total).to.exist;",
+                  "    pm.expect(jsonData.date_range).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-budget-partial-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": {\n    \"name\": \"Transport\",\n    \"profit\": false\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets/{{created_budget_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets",
+                "{{created_budget_id}}"
+              ]
+            },
+            "description": "Update only the budget category - should return 200 OK"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Budget - User Not Found (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Budget - User Not Found (404 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates user not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('user') && (msg.includes('not found') || msg.includes('does not exist'));",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-budget-user-notfound-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"total\": {\n    \"amount\": \"600.00\",\n    \"currency\": \"PLN\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/nonexistentuser999/budgets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "nonexistentuser999",
+                "budgets",
+                "1"
+              ]
+            },
+            "description": "Attempt to update budget for non-existent user - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Budget - Budget Not Found (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Budget - Budget Not Found (404 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates budget not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('budget') && (msg.includes('not found') || msg.includes('does not exist'));",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-budget-notfound-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"total\": {\n    \"amount\": \"600.00\",\n    \"currency\": \"PLN\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets/999999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets",
+                "999999"
+              ]
+            },
+            "description": "Attempt to update non-existent budget - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Budget - Not Authorized (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Budget - Not Authorized (403 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates authorization issue', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('not authorized') || msg.includes('forbidden') || msg.includes('permission');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-budget-forbidden-001",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"total\": {\n    \"amount\": \"600.00\",\n    \"currency\": \"PLN\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/anotheruser/budgets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "anotheruser",
+                "budgets",
+                "1"
+              ]
+            },
+            "description": "Attempt to update budget that belongs to another user - should return 403 Forbidden"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Budget - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Update Budget - Missing Auth (401 Error)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates authentication issue', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(msg) {",
+                  "        return msg.includes('unauthorized') || msg.includes('authentication') || msg.includes('token');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "update-budget-noauth-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"total\": {\n    \"amount\": \"600.00\",\n    \"currency\": \"PLN\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets",
+                "1"
+              ]
+            },
+            "description": "Attempt to update budget without authentication - should return 401 Unauthorized"
+          },
+          "response": []
         }
       ],
       "id": "477faef3-dda0-45ce-a279-5b9815111229",
