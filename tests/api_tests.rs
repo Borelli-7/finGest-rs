@@ -431,6 +431,32 @@ impl UserServiceTrait for MockUserService {
             date_range: new_date_range,
         })
     }
+
+    async fn delete_budget(&self, login: &str, budget_id: i32) -> Result<(), AppError> {
+        // Simulate user not found
+        if login == "nonexistentuser" {
+            return Err(AppError::NotFoundError(
+                format!("User with login '{}' not found", login)
+            ));
+        }
+        
+        // Simulate budget not found
+        if budget_id == 999 {
+            return Err(AppError::NotFoundError(
+                format!("Budget with id {} not found", budget_id)
+            ));
+        }
+        
+        // Simulate not authorized (budget belongs to another user)
+        if budget_id == 888 {
+            return Err(AppError::AuthorizationError(
+                "Not authorized to delete this budget".to_string()
+            ));
+        }
+        
+        // Budget 1 belongs to testuser and can be deleted
+        Ok(())
+    }
 }
 
 #[actix_rt::test]
@@ -2348,6 +2374,130 @@ async fn test_update_budget_not_authorized() {
     let req = test::TestRequest::put()
         .uri("/resources/users/testuser/budgets/888")
         .set_json(&update_dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 403 Forbidden
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[actix_rt::test]
+async fn test_delete_budget_success() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets/{budget_id}", web::delete().to(|
+                path: web::Path<(String, i32)>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, budget_id) = path.into_inner();
+                match svc.delete_budget(&login, budget_id).await {
+                    Ok(_) => Ok::<_, AppError>(HttpResponse::NoContent().finish()),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Delete budget that belongs to testuser
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/testuser/budgets/1")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 204 No Content
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+}
+
+#[actix_rt::test]
+async fn test_delete_budget_user_not_found() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets/{budget_id}", web::delete().to(|
+                path: web::Path<(String, i32)>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, budget_id) = path.into_inner();
+                match svc.delete_budget(&login, budget_id).await {
+                    Ok(_) => Ok::<_, AppError>(HttpResponse::NoContent().finish()),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Try to delete budget for non-existent user
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/nonexistentuser/budgets/1")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 404 Not Found
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[actix_rt::test]
+async fn test_delete_budget_budget_not_found() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets/{budget_id}", web::delete().to(|
+                path: web::Path<(String, i32)>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, budget_id) = path.into_inner();
+                match svc.delete_budget(&login, budget_id).await {
+                    Ok(_) => Ok::<_, AppError>(HttpResponse::NoContent().finish()),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Try to delete non-existent budget (ID 999)
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/testuser/budgets/999")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 404 Not Found
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[actix_rt::test]
+async fn test_delete_budget_not_authorized() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets/{budget_id}", web::delete().to(|
+                path: web::Path<(String, i32)>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, budget_id) = path.into_inner();
+                match svc.delete_budget(&login, budget_id).await {
+                    Ok(_) => Ok::<_, AppError>(HttpResponse::NoContent().finish()),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Try to delete budget that belongs to another user (ID 888)
+    let req = test::TestRequest::delete()
+        .uri("/resources/users/testuser/budgets/888")
         .to_request();
     let resp = test::call_service(&app, req).await;
     
