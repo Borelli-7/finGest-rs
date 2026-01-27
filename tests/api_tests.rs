@@ -385,6 +385,52 @@ impl UserServiceTrait for MockUserService {
             ..budget
         })
     }
+    
+    async fn update_budget(&self, login: &str, budget_id: i32, update_data: money_manager_api::models::UpdateBudgetDto) -> Result<Budget, AppError> {
+        // Simulate user not found
+        if login == "nonexistentuser" {
+            return Err(AppError::NotFoundError(
+                format!("User with login '{}' not found", login)
+            ));
+        }
+        
+        // Simulate budget not found
+        if budget_id == 999 {
+            return Err(AppError::NotFoundError(
+                format!("Budget with id {} not found", budget_id)
+            ));
+        }
+        
+        // Simulate not authorized (budget belongs to another user)
+        if budget_id == 888 {
+            return Err(AppError::AuthorizationError(
+                "Not authorized to update this budget".to_string()
+            ));
+        }
+        
+        // Get existing budget (mock data)
+        let existing = Budget {
+            id: Some(budget_id),
+            category: Category::new("Food".to_string(), false),
+            total: Money::new(BigDecimal::from(500), Some("USD".to_string())),
+            date_range: DateRange {
+                start: NaiveDate::from_ymd_opt(2025, 11, 1).unwrap(),
+                end: NaiveDate::from_ymd_opt(2025, 11, 30).unwrap(),
+            },
+        };
+        
+        // Apply updates
+        let new_category = update_data.category.unwrap_or(existing.category);
+        let new_total = update_data.total.unwrap_or(existing.total);
+        let new_date_range = update_data.date_range.unwrap_or(existing.date_range);
+        
+        Ok(Budget {
+            id: Some(budget_id),
+            category: new_category,
+            total: new_total,
+            date_range: new_date_range,
+        })
+    }
 }
 
 #[actix_rt::test]
@@ -2100,6 +2146,208 @@ async fn test_delete_wallet_not_authorized() {
     // Act - Try to delete wallet that belongs to another user (ID 888)
     let req = test::TestRequest::delete()
         .uri("/resources/users/testuser/wallets/888")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 403 Forbidden
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[actix_rt::test]
+async fn test_update_budget_success() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets/{budget_id}", web::put().to(|
+                path: web::Path<(String, i32)>,
+                update_data: web::Json<money_manager_api::models::UpdateBudgetDto>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, budget_id) = path.into_inner();
+                let updated_budget = svc.update_budget(&login, budget_id, update_data.into_inner()).await?;
+                Ok::<_, AppError>(HttpResponse::Ok().json(updated_budget))
+            }))
+    )
+    .await;
+    
+    // Act - Update budget total
+    let update_dto = money_manager_api::models::UpdateBudgetDto {
+        category: None,
+        total: Some(Money::new(BigDecimal::from(750), Some("USD".to_string()))),
+        date_range: None,
+    };
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/users/testuser/budgets/1")
+        .set_json(&update_dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 200 OK
+    assert_eq!(resp.status(), StatusCode::OK);
+    
+    // Verify response contains updated budget
+    let body = test::read_body(resp).await;
+    let updated_budget: Budget = serde_json::from_slice(&body).unwrap();
+    assert_eq!(updated_budget.id, Some(1));
+    assert_eq!(updated_budget.total.amount, BigDecimal::from(750));
+    assert_eq!(updated_budget.total.currency, "USD");
+}
+
+#[actix_rt::test]
+async fn test_update_budget_partial_update() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets/{budget_id}", web::put().to(|
+                path: web::Path<(String, i32)>,
+                update_data: web::Json<money_manager_api::models::UpdateBudgetDto>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, budget_id) = path.into_inner();
+                let updated_budget = svc.update_budget(&login, budget_id, update_data.into_inner()).await?;
+                Ok::<_, AppError>(HttpResponse::Ok().json(updated_budget))
+            }))
+    )
+    .await;
+    
+    // Act - Update only category
+    let update_dto = money_manager_api::models::UpdateBudgetDto {
+        category: Some(Category::new("Transport".to_string(), false)),
+        total: None,
+        date_range: None,
+    };
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/users/testuser/budgets/1")
+        .set_json(&update_dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 200 OK
+    assert_eq!(resp.status(), StatusCode::OK);
+    
+    let body = test::read_body(resp).await;
+    let updated_budget: Budget = serde_json::from_slice(&body).unwrap();
+    assert_eq!(updated_budget.category.name, "Transport");
+}
+
+#[actix_rt::test]
+async fn test_update_budget_user_not_found() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets/{budget_id}", web::put().to(|
+                path: web::Path<(String, i32)>,
+                update_data: web::Json<money_manager_api::models::UpdateBudgetDto>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, budget_id) = path.into_inner();
+                match svc.update_budget(&login, budget_id, update_data.into_inner()).await {
+                    Ok(budget) => Ok::<_, AppError>(HttpResponse::Ok().json(budget)),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Try to update budget for non-existent user
+    let update_dto = money_manager_api::models::UpdateBudgetDto {
+        category: None,
+        total: Some(Money::new(BigDecimal::from(600), None)),
+        date_range: None,
+    };
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/users/nonexistentuser/budgets/1")
+        .set_json(&update_dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 404 Not Found
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[actix_rt::test]
+async fn test_update_budget_budget_not_found() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets/{budget_id}", web::put().to(|
+                path: web::Path<(String, i32)>,
+                update_data: web::Json<money_manager_api::models::UpdateBudgetDto>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, budget_id) = path.into_inner();
+                match svc.update_budget(&login, budget_id, update_data.into_inner()).await {
+                    Ok(budget) => Ok::<_, AppError>(HttpResponse::Ok().json(budget)),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Try to update non-existent budget (ID 999)
+    let update_dto = money_manager_api::models::UpdateBudgetDto {
+        category: None,
+        total: Some(Money::new(BigDecimal::from(600), None)),
+        date_range: None,
+    };
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/users/testuser/budgets/999")
+        .set_json(&update_dto)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 404 Not Found
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[actix_rt::test]
+async fn test_update_budget_not_authorized() {
+    // Arrange
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets/{budget_id}", web::put().to(|
+                path: web::Path<(String, i32)>,
+                update_data: web::Json<money_manager_api::models::UpdateBudgetDto>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let (login, budget_id) = path.into_inner();
+                match svc.update_budget(&login, budget_id, update_data.into_inner()).await {
+                    Ok(budget) => Ok::<_, AppError>(HttpResponse::Ok().json(budget)),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Try to update budget that belongs to another user (ID 888)
+    let update_dto = money_manager_api::models::UpdateBudgetDto {
+        category: None,
+        total: Some(Money::new(BigDecimal::from(600), None)),
+        date_range: None,
+    };
+    
+    let req = test::TestRequest::put()
+        .uri("/resources/users/testuser/budgets/888")
+        .set_json(&update_dto)
         .to_request();
     let resp = test::call_service(&app, req).await;
     

@@ -43,6 +43,20 @@ pub struct BudgetInputDto {
     pub date_range: DateRange,
 }
 
+// DTO for updating existing budgets
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct UpdateBudgetDto {
+    #[validate(nested)]
+    pub category: Option<Category>,
+    
+    #[validate(nested)]
+    pub total: Option<Money>,
+    
+    #[serde(rename = "dateRange")]
+    #[validate(nested)]
+    pub date_range: Option<DateRange>,
+}
+
 impl From<Budget> for BudgetOutputDto {
     fn from(budget: Budget) -> Self {
         Self {

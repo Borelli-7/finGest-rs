@@ -5,7 +5,7 @@ use validator::Validate;
 
 use crate::{
     errors::AppError,
-    models::{BudgetInputDto, DateRange, ExpenseInputDto, UpdateExpenseDto, WalletDto, UpdateWalletDto},
+    models::{BudgetInputDto, UpdateBudgetDto, DateRange, ExpenseInputDto, UpdateExpenseDto, WalletDto, UpdateWalletDto},
     services::UserService,
     services::user_service::UserServiceTrait,
 };
@@ -299,4 +299,22 @@ pub async fn create_budget(
     Ok(HttpResponse::Created()
         .append_header(("Location", location))
         .json(created_budget))
+}
+
+// Handler for PUT /resources/users/{login}/budgets/{budget_id}
+pub async fn update_budget(
+    pool: web::Data<PgPool>,
+    path: web::Path<(String, i32)>,
+    update_data: web::Json<UpdateBudgetDto>,
+) -> Result<impl Responder, AppError> {
+    let (login, budget_id) = path.into_inner();
+    
+    // Validate the update data
+    update_data.validate()
+        .map_err(|e| AppError::BadRequestError(format!("Validation error: {}", e)))?;
+    
+    let user_service = UserService::new(pool.get_ref().clone());
+    let updated_budget = user_service.update_budget(&login, budget_id, update_data.0).await?;
+    
+    Ok(HttpResponse::Ok().json(updated_budget))
 }
