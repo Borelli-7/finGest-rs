@@ -1,9 +1,10 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use sqlx::PgPool;
 use std::collections::HashMap;
 use validator::Validate;
 
 use crate::{
+    api::middleware::get_claims_from_request,
     errors::AppError,
     models::{BudgetInputDto, UpdateBudgetDto, DateRange, ExpenseInputDto, UpdateExpenseDto, WalletDto, UpdateWalletDto},
     services::UserService,
@@ -256,12 +257,29 @@ pub async fn get_counted_categories(
 }
 
 // Handler for GET /resources/users/{login}/budgets
+/// Retrieves all budgets for a specific user.
+/// 
+/// # Authorization
+/// - The authenticated user must match the requested user login
+/// - Returns 401 Unauthorized if no valid token is provided
+/// - Returns 403 Forbidden if the authenticated user tries to access another user's budgets
+/// - Returns 404 Not Found if the requested user doesn't exist
 pub async fn get_budgets(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     path: web::Path<String>,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<impl Responder, AppError> {
     let login = path.into_inner();
+    
+    // Extract authenticated user claims from the request
+    let claims = get_claims_from_request(&req)
+        .ok_or_else(|| AppError::AuthenticationError(
+            "Missing or invalid authentication token".to_string()
+        ))?;
+    
+    // Verify the authenticated user is requesting their own budgets
+    let authenticated_login = &claims.sub;
     
     let start_min = query.get("start_min").map(|s| s.as_str());
     let start_max = query.get("start_max").map(|s| s.as_str());
@@ -275,7 +293,7 @@ pub async fn get_budgets(
         .map_err(|e| AppError::BadRequestError(format!("Invalid end date format: {}", e)))?;
     
     let user_service = UserService::new(pool.get_ref().clone());
-    let budgets = user_service.get_budgets(&login, start_range, end_range).await?;
+    let budgets = user_service.get_budgets(&login, authenticated_login, start_range, end_range).await?;
     
     Ok(HttpResponse::Ok().json(budgets))
 }

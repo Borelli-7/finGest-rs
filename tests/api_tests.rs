@@ -366,7 +366,21 @@ impl UserServiceTrait for MockUserService {
         Ok(categories)
     }
     
-    async fn get_budgets(&self, _login: &str, _start: DateRange, _end: DateRange) -> Result<Vec<BudgetOutputDto>, AppError> {
+    async fn get_budgets(&self, login: &str, authenticated_login: &str, _start: DateRange, _end: DateRange) -> Result<Vec<BudgetOutputDto>, AppError> {
+        // Simulate user not found
+        if login == "nonexistentuser" {
+            return Err(AppError::NotFoundError(
+                format!("User with login '{}' not found", login)
+            ));
+        }
+        
+        // Simulate authorization failure (user trying to access another user's budgets)
+        if login != authenticated_login {
+            return Err(AppError::AuthorizationError(
+                "Not authorized to access budgets for this user".to_string()
+            ));
+        }
+        
         Ok(vec![
             BudgetOutputDto {
                 id: Some(1),
@@ -2503,6 +2517,230 @@ async fn test_delete_budget_not_authorized() {
     
     // Assert - should return 403 Forbidden
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+// ==========================================
+// GET ALL BUDGETS ENDPOINT TESTS
+// ==========================================
+
+#[actix_rt::test]
+async fn test_get_budgets_success() {
+    // Arrange - Authorized user requesting their own budgets
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets", web::get().to(|
+                path: web::Path<String>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let login = path.into_inner();
+                // Simulate authenticated user matching the requested login
+                let authenticated_login = "testuser".to_string();
+                let start_range = DateRange::default();
+                let end_range = DateRange::default();
+                
+                match svc.get_budgets(&login, &authenticated_login, start_range, end_range).await {
+                    Ok(budgets) => Ok::<_, AppError>(HttpResponse::Ok().json(budgets)),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Request budgets for testuser as testuser
+    let req = test::TestRequest::get()
+        .uri("/resources/users/testuser/budgets")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 200 OK with budgets array
+    assert_eq!(resp.status(), StatusCode::OK);
+    
+    let body = test::read_body(resp).await;
+    let budgets: Vec<BudgetOutputDto> = serde_json::from_slice(&body).unwrap();
+    
+    assert!(!budgets.is_empty());
+    assert_eq!(budgets[0].category.name, "Food");
+    assert_eq!(budgets[0].total.amount, BigDecimal::from(500));
+}
+
+#[actix_rt::test]
+async fn test_get_budgets_user_not_found() {
+    // Arrange - Request budgets for a non-existent user
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets", web::get().to(|
+                path: web::Path<String>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let login = path.into_inner();
+                // Even with same authenticated login, user doesn't exist
+                let authenticated_login = "nonexistentuser".to_string();
+                let start_range = DateRange::default();
+                let end_range = DateRange::default();
+                
+                match svc.get_budgets(&login, &authenticated_login, start_range, end_range).await {
+                    Ok(budgets) => Ok::<_, AppError>(HttpResponse::Ok().json(budgets)),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Request budgets for non-existent user
+    let req = test::TestRequest::get()
+        .uri("/resources/users/nonexistentuser/budgets")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 404 Not Found
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[actix_rt::test]
+async fn test_get_budgets_not_authorized() {
+    // Arrange - User trying to access another user's budgets
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets", web::get().to(|
+                path: web::Path<String>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let login = path.into_inner();
+                // Authenticated user is different from requested user
+                let authenticated_login = "different_user".to_string();
+                let start_range = DateRange::default();
+                let end_range = DateRange::default();
+                
+                match svc.get_budgets(&login, &authenticated_login, start_range, end_range).await {
+                    Ok(budgets) => Ok::<_, AppError>(HttpResponse::Ok().json(budgets)),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Request budgets for testuser as different_user
+    let req = test::TestRequest::get()
+        .uri("/resources/users/testuser/budgets")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 403 Forbidden
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[actix_rt::test]
+async fn test_get_budgets_with_date_filters() {
+    // Arrange - Request budgets with date range filters
+    let mock_service = MockUserService;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets", web::get().to(|
+                path: web::Path<String>,
+                svc: web::Data<MockUserService>
+            | async move {
+                let login = path.into_inner();
+                let authenticated_login = "testuser".to_string();
+                let start_range = DateRange::default();
+                let end_range = DateRange::default();
+                
+                match svc.get_budgets(&login, &authenticated_login, start_range, end_range).await {
+                    Ok(budgets) => Ok::<_, AppError>(HttpResponse::Ok().json(budgets)),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Request budgets with date filters
+    let req = test::TestRequest::get()
+        .uri("/resources/users/testuser/budgets?start_min=2025-01-01&start_max=2025-12-31")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 200 OK
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[actix_rt::test]
+async fn test_get_budgets_empty_result() {
+    // Arrange - User with no budgets
+    struct MockUserServiceNoBudgets;
+    
+    #[async_trait]
+    impl UserServiceTrait for MockUserServiceNoBudgets {
+        async fn get_users(&self) -> Result<Vec<UserDto>, AppError> { Ok(vec![]) }
+        async fn update_user<T>(&self, _: &str, _: &str, _: HashMap<String, T>) -> Result<(), AppError> where T: serde::Serialize + std::fmt::Debug + Send + Sync + 'static { Ok(()) }
+        async fn delete_user(&self, _: &str) -> Result<(), AppError> { Ok(()) }
+        async fn get_wallets(&self, _: &str) -> Result<Vec<WalletDto>, AppError> { Ok(vec![]) }
+        async fn add_wallet(&self, _: &str, _: WalletDto) -> Result<WalletDto, AppError> { Err(AppError::NotFoundError("Not implemented".to_string())) }
+        async fn update_wallet(&self, _: &str, _: i32, _: UpdateWalletDto) -> Result<WalletDto, AppError> { Err(AppError::NotFoundError("Not implemented".to_string())) }
+        async fn delete_wallet(&self, _: &str, _: i32) -> Result<(), AppError> { Ok(()) }
+        async fn get_summary(&self, _: &str, _: i32, _: DateRange) -> Result<Summary, AppError> { Err(AppError::NotFoundError("Not implemented".to_string())) }
+        async fn get_expenses(&self, _: &str, _: i32, _: DateRange) -> Result<Vec<Expense>, AppError> { Ok(vec![]) }
+        async fn get_highest_expense(&self, _: &str, _: i32, _: DateRange) -> Result<Option<Expense>, AppError> { Ok(None) }
+        async fn add_expense(&self, _: &str, _: i32, _: ExpenseInputDto) -> Result<Expense, AppError> { Err(AppError::NotFoundError("Not implemented".to_string())) }
+        async fn update_expense(&self, _: &str, _: i32, _: i32, _: UpdateExpenseDto) -> Result<Expense, AppError> { Err(AppError::NotFoundError("Not implemented".to_string())) }
+        async fn delete_expense(&self, _: &str, _: i32, _: i32) -> Result<(), AppError> { Ok(()) }
+        async fn get_counted_categories(&self, _: &str, _: i32, _: DateRange) -> Result<HashMap<String, BigDecimal>, AppError> { Ok(HashMap::new()) }
+        async fn get_budgets(&self, login: &str, authenticated_login: &str, _: DateRange, _: DateRange) -> Result<Vec<BudgetOutputDto>, AppError> {
+            if login != authenticated_login {
+                return Err(AppError::AuthorizationError("Not authorized".to_string()));
+            }
+            // Return empty array for authorized user
+            Ok(vec![])
+        }
+        async fn add_budget(&self, _: &str, _: Budget) -> Result<Budget, AppError> { Err(AppError::NotFoundError("Not implemented".to_string())) }
+        async fn update_budget(&self, _: &str, _: i32, _: money_manager_api::models::UpdateBudgetDto) -> Result<Budget, AppError> { Err(AppError::NotFoundError("Not implemented".to_string())) }
+        async fn delete_budget(&self, _: &str, _: i32) -> Result<(), AppError> { Ok(()) }
+    }
+    
+    let mock_service = MockUserServiceNoBudgets;
+    
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(mock_service))
+            .route("/resources/users/{login}/budgets", web::get().to(|
+                path: web::Path<String>,
+                svc: web::Data<MockUserServiceNoBudgets>
+            | async move {
+                let login = path.into_inner();
+                let authenticated_login = "emptyuser".to_string();
+                let start_range = DateRange::default();
+                let end_range = DateRange::default();
+                
+                match svc.get_budgets(&login, &authenticated_login, start_range, end_range).await {
+                    Ok(budgets) => Ok::<_, AppError>(HttpResponse::Ok().json(budgets)),
+                    Err(e) => Err(e),
+                }
+            }))
+    )
+    .await;
+    
+    // Act - Request budgets for user with no budgets
+    let req = test::TestRequest::get()
+        .uri("/resources/users/emptyuser/budgets")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    
+    // Assert - should return 200 OK with empty array
+    assert_eq!(resp.status(), StatusCode::OK);
+    
+    let body = test::read_body(resp).await;
+    let budgets: Vec<BudgetOutputDto> = serde_json::from_slice(&body).unwrap();
+    
+    assert!(budgets.is_empty());
 }
 
 
