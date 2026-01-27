@@ -70,6 +70,7 @@ pub trait UserServiceTrait: Send + Sync {
         budget_id: i32,
         update_data: UpdateBudgetDto,
     ) -> Result<Budget, AppError>;
+    async fn delete_budget(&self, login: &str, budget_id: i32) -> Result<(), AppError>;
 }
 
 pub struct UserService {
@@ -1053,6 +1054,46 @@ impl UserServiceTrait for UserService {
 
         Ok(updated_budget)
     }
+
+    async fn delete_budget(&self, login: &str, budget_id: i32) -> Result<(), AppError> {
+        // First, check if the user exists
+        self.check_user_exists(login).await?;
+
+        // Check if the budget exists and get its owner
+        let budget_owner = sqlx::query(
+            "SELECT account_login FROM budget WHERE id = $1"
+        )
+        .bind(budget_id)
+        .map(|row: sqlx::postgres::PgRow| row.get::<String, _>("account_login"))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let budget_owner = match budget_owner {
+            Some(owner) => owner,
+            None => {
+                return Err(AppError::NotFoundError(
+                    format!("Budget with id {} not found", budget_id)
+                ));
+            }
+        };
+
+        // Check if the budget belongs to the user
+        if budget_owner != login {
+            return Err(AppError::AuthorizationError(
+                "Not authorized to delete this budget".to_string()
+            ));
+        }
+
+        // Delete the budget
+        sqlx::query("DELETE FROM budget WHERE id = $1")
+            .bind(budget_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1085,6 +1126,7 @@ mod tests {
             async fn get_budgets(&self, login: &str, start: DateRange, end: DateRange) -> Result<Vec<BudgetOutputDto>, AppError>;
             async fn add_budget(&self, login: &str, budget: Budget) -> Result<Budget, AppError>;
             async fn update_budget(&self, login: &str, budget_id: i32, update_data: UpdateBudgetDto) -> Result<Budget, AppError>;
+            async fn delete_budget(&self, login: &str, budget_id: i32) -> Result<(), AppError>;
         }
     }
 }

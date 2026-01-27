@@ -29,5 +29,6 @@ pub fn user_routes(cfg: &mut web::ServiceConfig) {
             .route("/{login}/budgets", web::get().to(user_handler::get_budgets))
             .route("/{login}/budgets", web::post().to(user_handler::create_budget))
             .route("/{login}/budgets/{budget_id}", web::put().to(user_handler::update_budget))
+            .route("/{login}/budgets/{budget_id}", web::delete().to(user_handler::delete_budget))
     );
 }

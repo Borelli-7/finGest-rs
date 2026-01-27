@@ -318,3 +318,16 @@ pub async fn update_budget(
     
     Ok(HttpResponse::Ok().json(updated_budget))
 }
+
+// Handler for DELETE /resources/users/{login}/budgets/{budget_id}
+pub async fn delete_budget(
+    pool: web::Data<PgPool>,
+    path: web::Path<(String, i32)>,
+) -> Result<impl Responder, AppError> {
+    let (login, budget_id) = path.into_inner();
+    
+    let user_service = UserService::new(pool.get_ref().clone());
+    user_service.delete_budget(&login, budget_id).await?;
+    
+    Ok(HttpResponse::NoContent().finish())
+}

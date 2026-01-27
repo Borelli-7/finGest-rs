@@ -5221,6 +5221,217 @@
             "description": "Attempt to update budget without authentication - should return 401 Unauthorized"
           },
           "response": []
+        },
+        {
+          "name": "Delete Budget - Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Test for successful budget deletion",
+                  "pm.test('Status code is 204 No Content', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Response body is empty', function () {",
+                  "    pm.expect(pm.response.text()).to.be.empty;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-budget-success-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets/{{test_budget_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets",
+                "{{test_budget_id}}"
+              ]
+            },
+            "description": "Delete an existing budget - should return 204 No Content"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Budget - User Not Found (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Test for user not found",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('error');",
+                  "    pm.expect(response.error.toLowerCase()).to.include('not found');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-budget-user-notfound-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/nonexistentuser/budgets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "nonexistentuser",
+                "budgets",
+                "1"
+              ]
+            },
+            "description": "Attempt to delete budget for non-existent user - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Budget - Budget Not Found (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Test for budget not found",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response contains budget not found message', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('error');",
+                  "    pm.expect(response.error.toLowerCase()).to.include('budget');",
+                  "    pm.expect(response.error.toLowerCase()).to.include('not found');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-budget-notfound-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets/999999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets",
+                "999999"
+              ]
+            },
+            "description": "Attempt to delete non-existent budget - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Budget - Not Authorized (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Test for unauthorized access",
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Response contains authorization error', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('error');",
+                  "    pm.expect(response.error.toLowerCase()).to.include('not authorized');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-budget-forbidden-001",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/user1/budgets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "user1",
+                "budgets",
+                "1"
+              ]
+            },
+            "description": "Attempt to delete budget that belongs to another user - should return 403 Forbidden"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Budget - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Test for missing authentication",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-budget-noauth-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}",
+                "budgets",
+                "1"
+              ]
+            },
+            "description": "Attempt to delete budget without authentication - should return 401 Unauthorized"
+          },
+          "response": []
         }
       ],
       "id": "477faef3-dda0-45ce-a279-5b9815111229",
