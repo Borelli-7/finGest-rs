@@ -913,10 +913,10 @@ async fn test_verify_token_handler() {
 }
 
 // ============================================================================
-// Admin-Only Get Users Endpoint Tests
+// Admin-Only Get Users Endpoint Tests (with path login validation)
 // ============================================================================
 
-/// Test that admin users can successfully retrieve all users
+/// Test that admin users can successfully retrieve all users when path login matches JWT
 #[actix_rt::test]
 async fn test_get_users_admin_success() {
     use money_manager_api::api::handlers::user_handler;
@@ -932,7 +932,8 @@ async fn test_get_users_admin_success() {
         let jwt_secret = "test_secret_key_12345678901234567890".to_string();
         
         // Generate an admin JWT token
-        let admin_token = generate_test_token("adminuser", true, &jwt_secret);
+        let admin_login = "adminuser";
+        let admin_token = generate_test_token(admin_login, true, &jwt_secret);
         
         let app = test::init_service(
             App::new()
@@ -940,13 +941,14 @@ async fn test_get_users_admin_success() {
                 .service(
                     web::scope("/resources")
                         .wrap(JwtAuth::new(jwt_secret.clone()))
-                        .route("/users", web::get().to(user_handler::get_users))
+                        .route("/users/{login}", web::get().to(user_handler::get_users))
                 )
         )
         .await;
         
+        // Path login matches JWT claims.sub
         let req = test::TestRequest::get()
-            .uri("/resources/users")
+            .uri(&format!("/resources/users/{}", admin_login))
             .insert_header(("Authorization", format!("Bearer {}", admin_token)))
             .to_request();
         
@@ -978,7 +980,8 @@ async fn test_get_users_non_admin_forbidden() {
         let jwt_secret = "test_secret_key_12345678901234567890".to_string();
         
         // Generate a non-admin JWT token
-        let non_admin_token = generate_test_token("regularuser", false, &jwt_secret);
+        let regular_login = "regularuser";
+        let non_admin_token = generate_test_token(regular_login, false, &jwt_secret);
         
         let app = test::init_service(
             App::new()
@@ -986,13 +989,14 @@ async fn test_get_users_non_admin_forbidden() {
                 .service(
                     web::scope("/resources")
                         .wrap(JwtAuth::new(jwt_secret.clone()))
-                        .route("/users", web::get().to(user_handler::get_users))
+                        .route("/users/{login}", web::get().to(user_handler::get_users))
                 )
         )
         .await;
         
+        // Path login matches JWT but user is not admin
         let req = test::TestRequest::get()
-            .uri("/resources/users")
+            .uri(&format!("/resources/users/{}", regular_login))
             .insert_header(("Authorization", format!("Bearer {}", non_admin_token)))
             .to_request();
         
@@ -1007,6 +1011,57 @@ async fn test_get_users_non_admin_forbidden() {
         assert!(error.get("message").is_some());
         let message = error["message"].as_str().unwrap();
         assert!(message.to_lowercase().contains("not authorized") || message.to_lowercase().contains("admin"));
+    }
+}
+
+/// Test that path login mismatch returns 403 Forbidden (user spoofing attempt)
+#[actix_rt::test]
+async fn test_get_users_path_login_mismatch_forbidden() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    // Create a connection to the test database
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        // Generate an admin JWT token for one user
+        let actual_login = "realadmin";
+        let admin_token = generate_test_token(actual_login, true, &jwt_secret);
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users/{login}", web::get().to(user_handler::get_users))
+                )
+        )
+        .await;
+        
+        // Try to use a DIFFERENT login in the path (spoofing attempt)
+        let spoofed_login = "spoofeduser";
+        let req = test::TestRequest::get()
+            .uri(&format!("/resources/users/{}", spoofed_login))
+            .insert_header(("Authorization", format!("Bearer {}", admin_token)))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 403 Forbidden due to login mismatch
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        
+        // Verify error response contains appropriate message about mismatch
+        let body = test::read_body(resp).await;
+        let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(error.get("message").is_some());
+        let message = error["message"].as_str().unwrap();
+        assert!(message.to_lowercase().contains("not authorized") || message.contains("does not match"));
     }
 }
 
@@ -1031,14 +1086,14 @@ async fn test_get_users_missing_auth_unauthorized() {
                 .service(
                     web::scope("/resources")
                         .wrap(JwtAuth::new(jwt_secret.clone()))
-                        .route("/users", web::get().to(user_handler::get_users))
+                        .route("/users/{login}", web::get().to(user_handler::get_users))
                 )
         )
         .await;
         
         // Request without Authorization header
         let req = test::TestRequest::get()
-            .uri("/resources/users")
+            .uri("/resources/users/someuser")
             .to_request();
         
         let resp = test::call_service(&app, req).await;
@@ -1069,14 +1124,14 @@ async fn test_get_users_invalid_token_unauthorized() {
                 .service(
                     web::scope("/resources")
                         .wrap(JwtAuth::new(jwt_secret.clone()))
-                        .route("/users", web::get().to(user_handler::get_users))
+                        .route("/users/{login}", web::get().to(user_handler::get_users))
                 )
         )
         .await;
         
         // Request with invalid token
         let req = test::TestRequest::get()
-            .uri("/resources/users")
+            .uri("/resources/users/someuser")
             .insert_header(("Authorization", "Bearer invalid_token_here"))
             .to_request();
         
@@ -1117,7 +1172,7 @@ async fn test_get_users_handler() {
     
     let app = test::init_service(
         App::new()
-            .route("/resources/users", web::get().to(|_: web::Data<MockUserService>| async move {
+            .route("/resources/users/{login}", web::get().to(|_: web::Data<MockUserService>| async move {
                 let mock = MockUserService;
                 let users = mock.get_users().await.unwrap();
                 web::Json(users)
@@ -1126,7 +1181,7 @@ async fn test_get_users_handler() {
     )
     .await;
     
-    let req = test::TestRequest::get().uri("/resources/users").to_request();
+    let req = test::TestRequest::get().uri("/resources/users/testuser").to_request();
     let resp = test::call_service(&app, req).await;
     
     assert!(resp.status().is_success());

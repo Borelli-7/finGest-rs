@@ -667,16 +667,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/resources/users",
+              "raw": "{{base_url}}/resources/users/{{admin_user_login}}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "resources",
-                "users"
+                "users",
+                "{{admin_user_login}}"
               ]
             },
-            "description": "Retrieve all users in the system. Requires admin privileges (admin=true)."
+            "description": "Retrieve all users in the system. Requires admin privileges (admin=true). Path login must match JWT token login."
           },
           "response": []
         },
@@ -733,13 +734,14 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/resources/users",
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "resources",
-                "users"
+                "users",
+                "{{test_user_login}}"
               ]
             },
             "description": "Attempt to retrieve all users with a non-admin token - should return 403 Forbidden"
@@ -792,13 +794,14 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/resources/users",
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "resources",
-                "users"
+                "users",
+                "{{test_user_login}}"
               ]
             },
             "description": "Attempt to retrieve all users without authentication - should return 401 Unauthorized"
@@ -852,16 +855,85 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/resources/users",
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "resources",
-                "users"
+                "users",
+                "{{test_user_login}}"
               ]
             },
             "description": "Attempt to retrieve all users with an invalid token - should return 401 Unauthorized"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Users - Login Mismatch (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Get All Users - Login Mismatch (403)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Response has error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates login mismatch', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(m) {",
+                  "        return m.includes('not authorized') || m.includes('does not match') || m.includes('forbidden');",
+                  "    }, 'Message should indicate authorization error due to login mismatch');",
+                  "});",
+                  "",
+                  "pm.test('Response has correct status field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData.status).to.equal('403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// This test attempts to access users with a different login in the path",
+                  "// than the one in the JWT token (user spoofing attempt)",
+                  "// Should return 403 even if the token belongs to an admin"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "get-users-login-mismatch-error-001",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/spoofed_user_login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "spoofed_user_login"
+              ]
+            },
+            "description": "Attempt to retrieve all users with a path login different from JWT token login - should return 403 Forbidden (prevents user spoofing)"
           },
           "response": []
         },
@@ -4980,6 +5052,7 @@
             {
               "listen": "test",
               "script": {
+                "id": "eec186c9-8afb-4ac1-bda9-474d9898e3c8",
                 "exec": [
                   "// ============================================",
                   "// Create Budget - Success (201)",
@@ -5048,7 +5121,21 @@
                   "    }",
                   "});"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "a1805858-bd5a-4389-8055-f82e1dd8d6b4",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
@@ -5063,7 +5150,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"category\": {\n    \"name\": \"Food\",\n    \"profit\": false\n  },\n  \"total\": {\n    \"amount\": \"500.00\",\n    \"currency\": \"PLN\"\n  },\n  \"dateRange\": {\n    \"start\": \"2023-12-01\",\n    \"end\": \"2023-12-31\"\n  }\n}"
+              "raw": "{\n  \"category\": {\n    \"name\": \"Food\",\n    \"profit\": false\n  },\n  \"total\": {\n    \"amount\": \"500.00\",\n    \"currency\": \"PLN\"\n  },\n  \"dateRange\": {\n    \"start\": \"2023-12-01\",\n    \"end\": \"2026-12-31\"\n  }\n}"
             },
             "url": {
               "raw": "{{base_url}}/resources/users/{{test_user_login}}/budgets",

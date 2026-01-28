@@ -6,7 +6,7 @@ pub fn user_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/resources/users")
             // User endpoints
-            .route("", web::get().to(user_handler::get_users))
+            .route("/{login}", web::get().to(user_handler::get_users))
             .route("/{login}", web::put().to(user_handler::update_user))
             .route("/{login}", web::delete().to(user_handler::delete_user))
             
