@@ -599,14 +599,14 @@
       "name": "Users",
       "item": [
         {
-          "name": "Get All Users - Success",
+          "name": "Get All Users - Admin Success",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "// ============================================",
-                  "// Get All Users - Success (200)",
+                  "// Get All Users - Admin Success (200)",
                   "// ============================================",
                   "",
                   "pm.test('Status code is 200 OK', function () {",
@@ -650,6 +650,16 @@
                 ],
                 "type": "text/javascript"
               }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// This test requires an admin user token",
+                  "// Make sure the auth_token is from an admin user"
+                ],
+                "type": "text/javascript"
+              }
             }
           ],
           "id": "e5fbb86c-aed6-4695-b580-ae2bbfc8841e",
@@ -666,7 +676,192 @@
                 "users"
               ]
             },
-            "description": "Retrieve all users in the system"
+            "description": "Retrieve all users in the system. Requires admin privileges (admin=true)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Users - Non-Admin (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Get All Users - Non-Admin Forbidden (403)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Response has error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates authorization failure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(m) {",
+                  "        return m.includes('not authorized') || m.includes('admin') || m.includes('forbidden');",
+                  "    }, 'Message should indicate authorization error');",
+                  "});",
+                  "",
+                  "pm.test('Response has correct status field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData.status).to.equal('403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// This test uses a non-admin user token",
+                  "// The auth_token should be from a regular user (admin=false)"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "get-users-non-admin-error-001",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users"
+              ]
+            },
+            "description": "Attempt to retrieve all users with a non-admin token - should return 403 Forbidden"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Users - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Get All Users - Missing Auth (401)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response has error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates authentication failure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(m) {",
+                  "        return m.includes('missing') || m.includes('auth') || m.includes('token') || m.includes('unauthorized');",
+                  "    }, 'Message should indicate authentication error');",
+                  "});",
+                  "",
+                  "pm.test('Response has correct status field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData.status).to.equal('401');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "get-users-noauth-error-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users"
+              ]
+            },
+            "description": "Attempt to retrieve all users without authentication - should return 401 Unauthorized"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Users - Invalid Token (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Get All Users - Invalid Token (401)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response has error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates invalid token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(function(m) {",
+                  "        return m.includes('invalid') || m.includes('token') || m.includes('unauthorized');",
+                  "    }, 'Message should indicate token validation error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "get-users-invalid-token-error-001",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid_token_12345",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users"
+              ]
+            },
+            "description": "Attempt to retrieve all users with an invalid token - should return 401 Unauthorized"
           },
           "response": []
         },

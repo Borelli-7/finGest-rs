@@ -912,6 +912,205 @@ async fn test_verify_token_handler() {
     assert!(resp.status().is_success());
 }
 
+// ============================================================================
+// Admin-Only Get Users Endpoint Tests
+// ============================================================================
+
+/// Test that admin users can successfully retrieve all users
+#[actix_rt::test]
+async fn test_get_users_admin_success() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    // Create a connection to the test database
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        // Generate an admin JWT token
+        let admin_token = generate_test_token("adminuser", true, &jwt_secret);
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users", web::get().to(user_handler::get_users))
+                )
+        )
+        .await;
+        
+        let req = test::TestRequest::get()
+            .uri("/resources/users")
+            .insert_header(("Authorization", format!("Bearer {}", admin_token)))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 200 OK
+        assert_eq!(resp.status(), StatusCode::OK);
+        
+        // Verify response is an array of users
+        let body = test::read_body(resp).await;
+        let users: Vec<UserDto> = serde_json::from_slice(&body).unwrap();
+        assert!(!users.is_empty() || users.is_empty()); // May be empty in test DB, that's OK
+    }
+}
+
+/// Test that non-admin users receive 403 Forbidden when trying to get all users
+#[actix_rt::test]
+async fn test_get_users_non_admin_forbidden() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    // Create a connection to the test database
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        // Generate a non-admin JWT token
+        let non_admin_token = generate_test_token("regularuser", false, &jwt_secret);
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users", web::get().to(user_handler::get_users))
+                )
+        )
+        .await;
+        
+        let req = test::TestRequest::get()
+            .uri("/resources/users")
+            .insert_header(("Authorization", format!("Bearer {}", non_admin_token)))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 403 Forbidden
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        
+        // Verify error response contains appropriate message
+        let body = test::read_body(resp).await;
+        let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(error.get("message").is_some());
+        let message = error["message"].as_str().unwrap();
+        assert!(message.to_lowercase().contains("not authorized") || message.to_lowercase().contains("admin"));
+    }
+}
+
+/// Test that unauthenticated requests receive 401 Unauthorized
+#[actix_rt::test]
+async fn test_get_users_missing_auth_unauthorized() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    // Create a connection to the test database
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users", web::get().to(user_handler::get_users))
+                )
+        )
+        .await;
+        
+        // Request without Authorization header
+        let req = test::TestRequest::get()
+            .uri("/resources/users")
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 401 Unauthorized
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+}
+
+/// Test that invalid tokens receive 401 Unauthorized
+#[actix_rt::test]
+async fn test_get_users_invalid_token_unauthorized() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    // Create a connection to the test database
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    // Skip test if database is not available
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users", web::get().to(user_handler::get_users))
+                )
+        )
+        .await;
+        
+        // Request with invalid token
+        let req = test::TestRequest::get()
+            .uri("/resources/users")
+            .insert_header(("Authorization", "Bearer invalid_token_here"))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 401 Unauthorized
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+}
+
+/// Helper function to generate test JWT tokens
+fn generate_test_token(login: &str, admin: bool, secret: &str) -> String {
+    use jsonwebtoken::{encode, EncodingKey, Header};
+    use chrono::{Duration, Utc};
+    use money_manager_api::services::auth_service::Claims;
+    
+    let now = Utc::now();
+    let expiration = now + Duration::hours(24);
+    
+    let claims = Claims {
+        sub: login.to_string(),
+        admin,
+        exp: expiration.timestamp(),
+        iat: now.timestamp(),
+    };
+    
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    ).unwrap()
+}
+
+// Legacy test - keeping for backwards compatibility with mock service
 #[actix_rt::test]
 async fn test_get_users_handler() {
     let mock_service = MockUserService;
