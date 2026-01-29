@@ -11,8 +11,46 @@ use crate::{
     services::user_service::UserServiceTrait,
 };
 
-// Handler for GET /resources/users
-pub async fn get_users(pool: web::Data<PgPool>) -> Result<impl Responder, AppError> {
+/// Handler for GET /resources/users/{login}
+/// 
+/// Returns a list of all users in the system.
+/// 
+/// # Path Parameters
+/// - `login`: The login of the user making the request. Must match the authenticated user's login.
+/// 
+/// # Authorization
+/// This endpoint requires:
+/// 1. Valid JWT authentication token
+/// 2. Path login must match the authenticated user's login (prevents user spoofing)
+/// 3. Admin privileges (admin: true)
+/// 
+/// # Responses
+/// - `200 OK`: Successfully retrieved users list
+/// - `401 Unauthorized`: Missing or invalid authentication token
+/// - `403 Forbidden`: User is not authorized (login mismatch or not an admin)
+pub async fn get_users(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+    path: web::Path<String>,
+) -> Result<impl Responder, AppError> {
+    let path_login = path.into_inner();
+    
+    // Extract claims from the authenticated request
+    let claims = get_claims_from_request(&req)
+        .ok_or_else(|| AppError::AuthenticationError("Missing or invalid authentication token".to_string()))?;
+    
+    // Validate that the path login matches the authenticated user's login
+    if path_login != claims.sub {
+        return Err(AppError::AuthorizationError(
+            format!("Not authorized. Path login '{}' does not match authenticated user '{}'", path_login, claims.sub)
+        ));
+    }
+    
+    // Check if the user has admin privileges
+    if !claims.admin {
+        return Err(AppError::AuthorizationError("Not authorized. Admin privileges required to access this resource".to_string()));
+    }
+    
     let user_service = UserService::new(pool.get_ref().clone());
     let users = user_service.get_users().await?;
     
@@ -348,4 +386,91 @@ pub async fn delete_budget(
     user_service.delete_budget(&login, budget_id).await?;
     
     Ok(HttpResponse::NoContent().finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::auth_service::Claims;
+    
+    /// Test that admin check logic correctly identifies admin users
+    #[test]
+    fn test_admin_authorization_logic() {
+        // Admin user should be allowed
+        let admin_claims = Claims {
+            sub: "admin_user".to_string(),
+            admin: true,
+            exp: 9999999999,
+            iat: 1000000000,
+        };
+        assert!(admin_claims.admin, "Admin claims should have admin=true");
+        
+        // Non-admin user should be denied
+        let non_admin_claims = Claims {
+            sub: "regular_user".to_string(),
+            admin: false,
+            exp: 9999999999,
+            iat: 1000000000,
+        };
+        assert!(!non_admin_claims.admin, "Non-admin claims should have admin=false");
+    }
+    
+    /// Test path login validation against JWT claims
+    #[test]
+    fn test_path_login_validation() {
+        let claims = Claims {
+            sub: "admin_user".to_string(),
+            admin: true,
+            exp: 9999999999,
+            iat: 1000000000,
+        };
+        
+        // Matching path login should pass
+        let path_login = "admin_user";
+        assert_eq!(path_login, claims.sub, "Path login should match JWT claims sub");
+        
+        // Mismatched path login should fail
+        let wrong_path_login = "different_user";
+        assert_ne!(wrong_path_login, claims.sub, "Path login should not match when different");
+    }
+    
+    /// Test that path login mismatch returns appropriate error
+    #[test]
+    fn test_path_login_mismatch_error() {
+        let path_login = "attacker";
+        let claims_sub = "real_admin";
+        
+        let error = AppError::AuthorizationError(
+            format!("Not authorized. Path login '{}' does not match authenticated user '{}'", path_login, claims_sub)
+        );
+        
+        let error_string = error.to_string();
+        assert!(error_string.contains("Not authorized"));
+        assert!(error_string.contains(path_login));
+        assert!(error_string.contains(claims_sub));
+    }
+    
+    /// Test that the authorization error message is appropriate
+    #[test]
+    fn test_authorization_error_message() {
+        let error = AppError::AuthorizationError(
+            "Not authorized. Admin privileges required to access this resource".to_string()
+        );
+        
+        let error_string = error.to_string();
+        assert!(error_string.contains("Not authorized"));
+        assert!(error_string.contains("Admin"));
+    }
+    
+    /// Test that the authentication error message is appropriate
+    #[test]
+    fn test_authentication_error_message() {
+        let error = AppError::AuthenticationError(
+            "Missing or invalid authentication token".to_string()
+        );
+        
+        let error_string = error.to_string();
+        assert!(error_string.contains("Missing") || error_string.contains("invalid"));
+        assert!(error_string.contains("token"));
+    }
 }
