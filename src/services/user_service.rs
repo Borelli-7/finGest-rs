@@ -181,7 +181,7 @@ impl UserServiceTrait for UserService {
             .is_some();
 
         if !user_exists {
-            return Err(AppError::NotFoundError(format!("User `{}` does not exist", login)));
+            return Err(AppError::NotFoundError(format!("User with login '{}' not found", login)));
         }
 
         // Delete user (cascading deletes should handle related records)
