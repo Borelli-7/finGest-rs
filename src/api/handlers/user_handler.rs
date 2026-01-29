@@ -73,21 +73,47 @@ pub async fn update_user(
     Ok(HttpResponse::NoContent().finish())
 }
 
-// Handler for DELETE /resources/users/{login}
+/// Handler for DELETE /resources/users/{login}
+/// 
+/// Deletes a user from the system with role-based authorization.
+/// 
+/// # Path Parameters
+/// - `login`: The login of the user to be deleted
+/// 
+/// # Authorization
+/// This endpoint requires:
+/// 1. Valid JWT authentication token
+/// 2. Either:
+///    - Admin privileges (admin: true) to delete any user
+///    - Regular user can only delete their own account (login matches JWT login)
+/// 
+/// # Responses
+/// - `204 No Content`: User deleted successfully
+/// - `401 Unauthorized`: Missing or invalid authentication token
+/// - `403 Forbidden`: User is not authorized to delete the specified user
+/// - `404 Not Found`: User to be deleted does not exist
 pub async fn delete_user(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     path: web::Path<String>,
 ) -> Result<impl Responder, AppError> {
-    let login = path.into_inner();
+    let target_login = path.into_inner();
+    
+    // Extract claims from the authenticated request
+    let claims = get_claims_from_request(&req)
+        .ok_or_else(|| AppError::AuthenticationError("Missing or invalid authentication token".to_string()))?;
+    
+    // Authorization check: Admin can delete any user, regular users can only delete themselves
+    if !claims.admin && target_login != claims.sub {
+        return Err(AppError::AuthorizationError(
+            format!("Not authorized. Admin privileges required to delete other users. You can only delete your own account ({})", claims.sub)
+        ));
+    }
     
     let user_service = UserService::new(pool.get_ref().clone());
-    user_service.delete_user(&login).await?;
+    user_service.delete_user(&target_login).await?;
     
-    let response = serde_json::json!({
-        "message": format!("User `{}` deleted successfully", login)
-    });
-    
-    Ok(HttpResponse::Ok().json(response))
+    Ok(HttpResponse::NoContent().finish())
 }
 
 // Handler for GET /resources/users/{login}/wallets

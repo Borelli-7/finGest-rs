@@ -1138,6 +1138,16 @@
           ],
           "id": "delete-user-success-001",
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "DELETE",
             "header": [],
             "url": {
@@ -1151,7 +1161,376 @@
                 "{{test_user_login}}"
               ]
             },
-            "description": "Delete the test user"
+            "description": "Delete the test user (authenticated user deleting themselves or admin deleting any user)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User - Admin Delete Any User (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Delete User - Admin Delete Any User (204)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 204 No Content', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Response body is empty', function () {",
+                  "    pm.expect(pm.response.text()).to.equal('');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-user-admin-success-001",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/user_to_delete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "user_to_delete"
+              ]
+            },
+            "description": "Admin user successfully deletes another user - should return 204 No Content"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User - Self Delete (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Delete User - Self Delete (204)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 204 No Content', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Response body is empty', function () {",
+                  "    pm.expect(pm.response.text()).to.equal('');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-user-self-delete-success-001",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/{{test_user_login}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "{{test_user_login}}"
+              ]
+            },
+            "description": "Regular user successfully deletes their own account - should return 204 No Content"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User - Non-Admin Forbidden (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Delete User - Non-Admin Forbidden (403)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 403', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.equal('403');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates authorization failure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(msg => ",
+                  "        msg.includes('not authorized') || ",
+                  "        msg.includes('admin') ||",
+                  "        msg.includes('forbidden')",
+                  "    );",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-user-non-admin-forbidden-001",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/another_user",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "another_user"
+              ]
+            },
+            "description": "Regular user attempts to delete another user - should return 403 Forbidden"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User - Not Found (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Delete User - Not Found (404)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 404', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.equal('404');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates user not found', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.include('not found');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-user-not-found-001",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/nonexistent_user_xyz999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "nonexistent_user_xyz999"
+              ]
+            },
+            "description": "Attempt to delete non-existent user - should return 404 Not Found"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User - Missing Auth (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Delete User - Missing Auth (401)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 401', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.equal('401');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates authentication failure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(msg => ",
+                  "        msg.includes('unauthorized') || ",
+                  "        msg.includes('authentication') ||",
+                  "        msg.includes('missing')",
+                  "    );",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-user-missing-auth-001",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/someuser",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "someuser"
+              ]
+            },
+            "description": "Attempt to delete user without authentication - should return 401 Unauthorized"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User - Invalid Token (Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================",
+                  "// Delete User - Invalid Token (401)",
+                  "// ============================================",
+                  "",
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response has error structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test('Error status is 401', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.equal('401');",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates invalid token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const message = jsonData.message.toLowerCase();",
+                  "    pm.expect(message).to.satisfy(msg => ",
+                  "        msg.includes('invalid') || ",
+                  "        msg.includes('token') ||",
+                  "        msg.includes('authentication')",
+                  "    );",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "id": "delete-user-invalid-token-001",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid_token_xyz",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/resources/users/someuser",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "resources",
+                "users",
+                "someuser"
+              ]
+            },
+            "description": "Attempt to delete user with invalid token - should return 401 Unauthorized"
           },
           "response": []
         }

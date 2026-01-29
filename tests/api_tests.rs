@@ -2327,6 +2327,264 @@ async fn test_delete_user_not_found() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
+// ============================================================================
+// DELETE USER AUTHORIZATION TESTS (Role-Based Access Control)
+// ============================================================================
+
+/// Test that admin users can successfully delete any user
+#[actix_rt::test]
+async fn test_delete_user_admin_success() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        // Generate an admin JWT token
+        let admin_login = "adminuser";
+        let admin_token = generate_test_token(admin_login, true, &jwt_secret);
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users/{login}", web::delete().to(user_handler::delete_user))
+                )
+        )
+        .await;
+        
+        // Admin tries to delete another user (should succeed)
+        let target_user = "someuser";
+        let req = test::TestRequest::delete()
+            .uri(&format!("/resources/users/{}", target_user))
+            .insert_header(("Authorization", format!("Bearer {}", admin_token)))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 204 No Content or 404 if user doesn't exist (both are OK for this test)
+        assert!(resp.status() == StatusCode::NO_CONTENT || resp.status() == StatusCode::NOT_FOUND);
+    }
+}
+
+/// Test that regular users can successfully delete their own account
+#[actix_rt::test]
+async fn test_delete_user_self_delete_success() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        // Generate a non-admin JWT token
+        let regular_login = "regularuser";
+        let non_admin_token = generate_test_token(regular_login, false, &jwt_secret);
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users/{login}", web::delete().to(user_handler::delete_user))
+                )
+        )
+        .await;
+        
+        // User tries to delete themselves (should succeed)
+        let req = test::TestRequest::delete()
+            .uri(&format!("/resources/users/{}", regular_login))
+            .insert_header(("Authorization", format!("Bearer {}", non_admin_token)))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 204 No Content or 404 if user doesn't exist (both are OK for this test)
+        assert!(resp.status() == StatusCode::NO_CONTENT || resp.status() == StatusCode::NOT_FOUND);
+    }
+}
+
+/// Test that regular users receive 403 Forbidden when trying to delete other users
+#[actix_rt::test]
+async fn test_delete_user_non_admin_forbidden() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        // Generate a non-admin JWT token
+        let regular_login = "regularuser";
+        let non_admin_token = generate_test_token(regular_login, false, &jwt_secret);
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users/{login}", web::delete().to(user_handler::delete_user))
+                )
+        )
+        .await;
+        
+        // Regular user tries to delete ANOTHER user (should fail with 403)
+        let other_user = "otheruser";
+        let req = test::TestRequest::delete()
+            .uri(&format!("/resources/users/{}", other_user))
+            .insert_header(("Authorization", format!("Bearer {}", non_admin_token)))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 403 Forbidden
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        
+        // Verify error message
+        let body = test::read_body(resp).await;
+        let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(error.get("message").is_some());
+        let message = error["message"].as_str().unwrap();
+        assert!(message.to_lowercase().contains("not authorized") || message.to_lowercase().contains("admin"));
+    }
+}
+
+/// Test that unauthenticated requests receive 401 Unauthorized
+#[actix_rt::test]
+async fn test_delete_user_missing_auth_unauthorized() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users/{login}", web::delete().to(user_handler::delete_user))
+                )
+        )
+        .await;
+        
+        // Request without Authorization header
+        let req = test::TestRequest::delete()
+            .uri("/resources/users/someuser")
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 401 Unauthorized
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+}
+
+/// Test that invalid tokens receive 401 Unauthorized
+#[actix_rt::test]
+async fn test_delete_user_invalid_token_unauthorized() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users/{login}", web::delete().to(user_handler::delete_user))
+                )
+        )
+        .await;
+        
+        // Request with invalid token
+        let req = test::TestRequest::delete()
+            .uri("/resources/users/someuser")
+            .insert_header(("Authorization", "Bearer invalid_token_here"))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 401 Unauthorized
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+}
+
+/// Test that deleting non-existent user returns 404 Not Found
+#[actix_rt::test]
+async fn test_delete_user_not_found_admin() {
+    use money_manager_api::api::handlers::user_handler;
+    use money_manager_api::api::middleware::JwtAuth;
+    use sqlx::PgPool;
+    
+    let pool_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://test:test@localhost/test".to_string());
+    
+    if let Ok(pool) = PgPool::connect(&pool_url).await {
+        let jwt_secret = "test_secret_key_12345678901234567890".to_string();
+        
+        // Generate an admin JWT token
+        let admin_login = "adminuser";
+        let admin_token = generate_test_token(admin_login, true, &jwt_secret);
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(
+                    web::scope("/resources")
+                        .wrap(JwtAuth::new(jwt_secret.clone()))
+                        .route("/users/{login}", web::delete().to(user_handler::delete_user))
+                )
+        )
+        .await;
+        
+        // Admin tries to delete non-existent user
+        let non_existent_user = "user_that_does_not_exist_xyz999";
+        let req = test::TestRequest::delete()
+            .uri(&format!("/resources/users/{}", non_existent_user))
+            .insert_header(("Authorization", format!("Bearer {}", admin_token)))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        
+        // Should return 404 Not Found
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        
+        // Verify error message
+        let body = test::read_body(resp).await;
+        let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(error.get("message").is_some());
+        let message = error["message"].as_str().unwrap();
+        assert!(message.to_lowercase().contains("not found"));
+    }
+}
+
 // ============================================
 // Delete Wallet Tests
 // ============================================
